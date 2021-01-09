@@ -65,7 +65,7 @@ def calculate_smoothened_values(df,dateColName,caseColName,population,testColNam
         
 
     except Exception as e:
-        print(e)
+        logger.error(e)
 
 def simulate_new_cases(R_range,current_number,population,window_length=56):
     """
@@ -118,7 +118,7 @@ def simulate_new_cases(R_range,current_number,population,window_length=56):
 
 
     except Exception as e:
-        print(e)
+        logger.error(e)
 
 
 def simulate_threshold_dates(R_range,new_cases_avg,population,thresholds=[10,20,50,100,200,400,600,800,1000],window_length=1000,sum7=True):
@@ -188,7 +188,7 @@ def simulate_threshold_dates(R_range,new_cases_avg,population,thresholds=[10,20,
 
 
     except Exception as e:
-        print(e)
+        logger.error(e)
 
 
 def verify_threshold(FC_cases_per100k,threshold,interval=7):
@@ -246,7 +246,7 @@ def rolling_sum(list_of_cases,interval=7):
         return rolling_sum
 
     except Exception as e:
-        print(e)
+        logger.error(e)
 
 
 
@@ -283,10 +283,10 @@ def download_covid_data(url,country='lv'):
             return raw_df
 
         else:
-            print(response.status_code)
+            logger.error(f'Get request failed with HTTP status code: {response.status_code}'}
 
     except Exception as e:
-        print(e)
+        logger.error(e)
 
 
 
@@ -315,10 +315,10 @@ def download_lv_covid_data(url):
             return raw_df
 
         else:
-            print(response.status_code)
+            logger.error(f'Get request failed with HTTP status code: {response.status_code}'}
 
     except Exception as e:
-        print(e)
+        logger.error(e)
 
 
 def download_de_covid_data(url):
@@ -345,10 +345,10 @@ def download_de_covid_data(url):
             return raw_df
 
         else:
-            print(response.status_code)
+            logger.error(f'Get request failed with HTTP status code: {response.status_code}'}
 
     except Exception as e:
-        print(e)
+        logger.error(e)
 
 def download_de_covid_data_pandaless(url):
     """
@@ -387,7 +387,7 @@ def download_de_covid_data_pandaless(url):
             return day_dict_sorted
 
         else:
-            print(response.status_code)
+            logger.error(f'Get request failed with HTTP status code: {response.status_code}'}
 
     except Exception as e:
-        print(e)
+        logger.error(e)
