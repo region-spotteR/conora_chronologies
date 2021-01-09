@@ -165,9 +165,7 @@ def simulate_threshold_dates(R_range,new_cases_avg,population,thresholds=[10,20,
 
         result_list=[R_range]
         for th in thresholds:
-            threshold_days=[]
-            test=list(map(lambda R_s: verify_threshold(R_dict[R_s],th,interval=interval),R_range))
-            threshold_days.append(test)
+            threshold_days=list(map(lambda R_s: verify_threshold(R_dict[R_s],th,interval=interval),R_range))
             result_list.append(threshold_days)
             
         return result_list
@@ -283,7 +281,7 @@ def download_covid_data(url,country='lv'):
             return raw_df
 
         else:
-            logger.error(f'Get request failed with HTTP status code: {response.status_code}'}
+            logger.error(f'Get request failed with HTTP status code: {response.status_code}')
 
     except Exception as e:
         logger.error(e)
@@ -315,7 +313,7 @@ def download_lv_covid_data(url):
             return raw_df
 
         else:
-            logger.error(f'Get request failed with HTTP status code: {response.status_code}'}
+            logger.error(f'Get request failed with HTTP status code: {response.status_code}')
 
     except Exception as e:
         logger.error(e)
@@ -345,7 +343,7 @@ def download_de_covid_data(url):
             return raw_df
 
         else:
-            logger.error(f'Get request failed with HTTP status code: {response.status_code}'}
+            logger.error(f'Get request failed with HTTP status code: {response.status_code}')
 
     except Exception as e:
         logger.error(e)
@@ -387,7 +385,7 @@ def download_de_covid_data_pandaless(url):
             return day_dict_sorted
 
         else:
-            logger.error(f'Get request failed with HTTP status code: {response.status_code}'}
+            logger.error(f'Get request failed with HTTP status code: {response.status_code}')
 
     except Exception as e:
         logger.error(e)
