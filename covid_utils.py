@@ -4,7 +4,12 @@ import requests
 import json
 import pandas as pd
 import numpy as np
+from loguru import logger
+import sys
+from collections import OrderedDict
 
+logger.add(sys.stderr, format="{time} {level} {message}", filter="my_module", level="INFO")
+logger.add(sys.stderr, format="{time} {level} {message}", filter="my_module", level="ERROR")
 
 def hello(name):
     print('HI THERE ' + name)
@@ -116,9 +121,9 @@ def simulate_new_cases(R_range,current_number,population,window_length=56):
         print(e)
 
 
-def simulate_threshold_dates(R_range,current_number,population,thresholds=[10,20,50,100,200,400,600,800,1000],window_length=1000):
+def simulate_threshold_dates(R_range,new_cases_avg,population,thresholds=[10,20,50,100,200,400,600,800,1000],window_length=1000,sum7=True):
     """
-    Simulates daily new cases (in general and per 100k) according to a specified range of R; adds Date column
+    Simulates daily new cases (in general and per 100k) according to a specified range of R and calculates after how many days under an assumed R_0 a threshold is reached.
     
     Parameters
     ----------
@@ -130,11 +135,15 @@ def simulate_threshold_dates(R_range,current_number,population,thresholds=[10,20
         The population of a country
     thresholds : list
         A list of integers representing the threshold which R has to go above or below
+    window_length : int
+        An integer telling the function how far into the future it shall look. Default is 1000 days
+    sum7 : bool
+        A boolean telling the function if we want the cases per 100k for 7 or for 14 days. Default is True which results in results for cases per 100k for 7 days
     
     Returns
     -------
-    DataFrame
-        a DataFrame with daily new cases (in general and per 100k) according to a specified range of R. For cases per 100k also shows 7 and 14 day periods. Adds Date column starting from the current date
+    List
+        A nested list, where the first element is the R_range. All the other lists contain days when the threshold is reached. The second element is showing the values for the first threshold (defaults  to 10) and the third element shows the results for the second threshold given (defaults to 20) etc. pp
     """
     try:
 
@@ -156,18 +165,25 @@ def simulate_threshold_dates(R_range,current_number,population,thresholds=[10,20
 
         result_list=[R_range]
         for th in thresholds:
+            threshold_days=[]
+            test=list(map(lambda R_s: verify_threshold(R_dict[R_s],th,interval=interval),R_range))
+            threshold_days.append(test)
+            result_list.append(threshold_days)
+            
+        return result_list
 
-                ### verify threshold function
-                threshold_days=[]
-                if th<FC_cases_per100k[0]:
-                    index_threshold=np.flatnonzero(FC_cases_per100k<th)
-                else:
-                    index_threshold=np.flatnonzero(FC_cases_per100k>th)
+
+                # ### verify threshold function
+               
+                # if th<FC_cases_per100k[0]:
+                #     index_threshold=np.flatnonzero(FC_cases_per100k<th)
+                # else:
+                #     index_threshold=np.flatnonzero(FC_cases_per100k>th)
                 
-                if index_threshold.size!=0:
-                    threshold_days.append(index_threshold[0]+interval)
-                else:
-                    threshold_days.append(np.nan)
+                # if index_threshold.size!=0:
+                #     threshold_days.append(index_threshold[0]+interval)
+                # else:
+                #     threshold_days.append(np.nan)
 
 
 
@@ -175,10 +191,57 @@ def simulate_threshold_dates(R_range,current_number,population,thresholds=[10,20
         print(e)
 
 
+def verify_threshold(FC_cases_per100k,threshold,interval=7):
+    """
+    Subfunction of simulate_threshold_dates.  Calculates after how many days a threshold is reached
 
-def rolling_sum(list_of_simulated_cases,interval=7):
+    Parameters
+    ----------
+    FC_cases_per100k : list
+        The list of cases per 100k, based on simulated daily new covid infections using an assumed R_0
+    threshold : int
+        An integer indicating which thresholds needs to be reached
+    interval : int
+        An integer specifying 7 if we base our calculation of cases per 100k on a 7-day period
+        
+    Returns
+    -------
+    integer or nan
+        An integer of how many days it takes to reach that threshold or nan if the threshold can't be reached
+    """
     try:
-        cumulated_sum=np.cumsum(list_of_simulated_cases,dtype=float)
+        if threshold<FC_cases_per100k[0]:
+            index_threshold=np.flatnonzero(FC_cases_per100k<threshold)
+        else:
+            index_threshold=np.flatnonzero(FC_cases_per100k>threshold)
+        
+        if index_threshold.size!=0:
+            return index_threshold[0]+interval
+        else:
+            return np.nan
+
+         
+    except Exception as e:
+        logger.error(e)
+
+def rolling_sum(list_of_cases,interval=7):
+    """
+    Calculates the rolling sum over a specified interval
+
+    Parameters
+    ----------
+    list of cases : list
+        The list of cases
+    interval : int
+        An integer indicating over which period the rolling sum should be taken
+
+    Returns
+    -------
+    list
+        A list of rolling sums. Be aware that this list is exactly the `interval` amount shorter than `list_of_cases`
+    """
+    try:
+        cumulated_sum=np.cumsum(list_of_cases,dtype=float)
         rolling_sum=cumulated_sum[interval:]-cumulated_sum[:-interval]
         return rolling_sum
 
@@ -280,6 +343,48 @@ def download_de_covid_data(url):
             rawdata=pd.json_normalize(resp_dict.get('features'))
             raw_df=rawdata[rawdata['properties.AnzahlFall']>-1].groupby(by=['properties.Meldedatum'])['properties.AnzahlFall'].sum().reset_index()
             return raw_df
+
+        else:
+            print(response.status_code)
+
+    except Exception as e:
+        print(e)
+
+def download_de_covid_data_pandaless(url):
+    """
+    Downloads covid data from a url and returns a status code if the download fails. Is way faster since it doesn't use pandas
+
+    Parameters
+    ----------
+    url : string
+        The request url
+
+    Returns
+    -------
+    dict
+        A sorted dictionary with the Dates as key and the new Cases as values. Runs way faster than in pandas
+    """
+
+    try:
+        response=requests.get(url)
+        if response.status_code==200:
+            resp_dict=json.loads(response.content)
+
+            original_list=resp_dict['features']
+            day_dict = {}
+            for elem in original_list:
+                item=elem['properties']
+                current_date=item['Meldedatum']
+                if current_date not in day_dict:
+                    day_dict[current_date]=item['AnzahlFall']
+                else:
+                    day_dict[current_date]+=item['AnzahlFall'] # Summing up the data
+
+            day_dict_sorted=OrderedDict()
+            for key in sorted(day_dict.keys()):
+                day_dict_sorted[key]=day_dict[key]
+
+            return day_dict_sorted
 
         else:
             print(response.status_code)
