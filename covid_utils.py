@@ -90,11 +90,11 @@ def calculate_smoothened_values_pandaless(list_of_cases,population,list_of_tests
     try:
         New_Cases_7_Day_Sum=list(rolling_sum(list_of_cases))
         New_Cases_14_Day_Sum=list(rolling_sum(list_of_cases,interval=14))
-        New_Cases_7_Day_Mean=list(map(lambda x: x/7 if x is not None else None,New_Cases_7_Day_Sum))
-        New_Cases_14_Day_Mean=list(map(lambda x: x/14 if x is not None else None,New_Cases_14_Day_Sum))
-        New_Cases_100K_7_Days=list(map(lambda x: (x/population)*100000 if x is not None else None,New_Cases_7_Day_Sum))
-        New_Cases_100K_14_Days=list(map(lambda x: (x/population)*100000 if x is not None else None,New_Cases_14_Day_Sum))
-        Estimated_R0=list(map(lambda x,y: calculateR(x,y),New_Cases_7_Day_Sum,New_Cases_7_Day_Sum))
+        New_Cases_7_Day_Mean=list(map(lambda x: round(x/7,2) if x is not None else None,New_Cases_7_Day_Sum))
+        New_Cases_14_Day_Mean=list(map(lambda x: round(x/14,2) if x is not None else None,New_Cases_14_Day_Sum))
+        New_Cases_100K_7_Days=list(map(lambda x: round((x/population)*100000,2) if x is not None else None,New_Cases_7_Day_Sum))
+        New_Cases_100K_14_Days=list(map(lambda x: round((x/population)*100000,2) if x is not None else None,New_Cases_14_Day_Sum))
+        Estimated_R0=list(map(lambda x,y: calculateR(x,y),New_Cases_7_Day_Sum,New_Cases_14_Day_Sum))
 
         if list_of_tests is not None:                # Since some countries do not publish daily data on tests (looking at you Germany!) I make this calculation optional 
             # Calculating 7 and 14 day rolling sum for TEST NUMBER
@@ -136,7 +136,7 @@ def calculateTestPositivity(new_cases,new_tests):
         if new_cases is None or new_tests is None:
             return None
         else:
-            return (new_cases/new_tests)/7
+            return round(((new_cases/new_tests))*100,2)
 
     except Exception as e:
         logger.error(e)
@@ -165,7 +165,7 @@ def calculateR(last7days_cases,last14days_cases,constant_int=5):
             return None
         else:
             last_week_7days_Sum=last14days_cases-last7days_cases
-            return (last7days_cases+constant_int)/(last_week_7days_Sum+constant_int)
+            return round((last7days_cases+constant_int)/(last_week_7days_Sum+constant_int),2)
 
     except Exception as e:
         logger.error(e)
@@ -246,9 +246,9 @@ def simulate_new_cases_pandaless(R_range,new_cases_avg,population,window_length=
             new_cases=np.arange(start=1,stop=1+(step_value*window_length),step=step_value)*new_cases_avg
             New_Cases_7_Day_Sum=rolling_sum(new_cases,interval=7)
             New_Cases_14_Day_Sum=rolling_sum(new_cases,interval=14)
-            FC_cases_per100k_7d=list(map(lambda x: (x/population)*100000 if x is not None else None,New_Cases_7_Day_Sum))
-            FC_cases_per100k_14d=list(map(lambda x: (x/population)*100000 if x is not None else None,New_Cases_14_Day_Sum))        
-            new_cases_list.append(list(new_cases))
+            FC_cases_per100k_7d=list(map(lambda x: round((x/population)*100000,2) if x is not None else None,New_Cases_7_Day_Sum))
+            FC_cases_per100k_14d=list(map(lambda x: round((x/population)*100000,2) if x is not None else None,New_Cases_14_Day_Sum))        
+            new_cases_list.append(list(np.round(new_cases,2)))
             casesPer100k_7d_list.append(FC_cases_per100k_7d)
             casesPer100k_14d_list.append(FC_cases_per100k_14d)
 
