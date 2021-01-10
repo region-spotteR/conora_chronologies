@@ -1,8 +1,7 @@
 ## Utility functions for Covid Research
-import bisect # for estimating dates for covid cases thresholds are reached
 import requests
 import json
-import pandas as pd
+# import pandas as pd
 import numpy as np
 from loguru import logger
 import sys
@@ -67,6 +66,110 @@ def calculate_smoothened_values(df,dateColName,caseColName,population,testColNam
     except Exception as e:
         logger.error(e)
 
+def calculate_smoothened_values_pandaless(list_of_cases,population,list_of_tests=None):
+    """
+    Calculates smoothened covid case values by applying rolling averages and sums over 7 and 14 days. It also calculates an estimated r0 and new case per 100k for 7 and 14 days.
+    If there is a daily test data it also calculates a test positive rate over 7 days.
+    
+    Parameters
+    ----------
+    list_of_cases : list
+        A list sorted by date (chronologically) containing the daily new cases
+    population : int
+        The population of a country
+    list_of_tests : list, optional
+        A list sorted by date (chronologically) containing the tests reported on that day
+
+    Returns
+    -------
+    list
+        A list of columns containing numerical (smoothened) summary statistics
+    list
+        A second lists of strings containing the column names
+    """
+    try:
+        New_Cases_7_Day_Sum=list(rolling_sum(list_of_cases))
+        New_Cases_14_Day_Sum=list(rolling_sum(list_of_cases,interval=14))
+        New_Cases_7_Day_Mean=list(map(lambda x: x/7 if x is not None else None,New_Cases_7_Day_Sum))
+        New_Cases_14_Day_Mean=list(map(lambda x: x/14 if x is not None else None,New_Cases_14_Day_Sum))
+        New_Cases_100K_7_Days=list(map(lambda x: (x/population)*100000 if x is not None else None,New_Cases_7_Day_Sum))
+        New_Cases_100K_14_Days=list(map(lambda x: (x/population)*100000 if x is not None else None,New_Cases_14_Day_Sum))
+        Estimated_R0=list(map(lambda x,y: calculateR(x,y),New_Cases_7_Day_Sum,New_Cases_7_Day_Sum))
+
+        if list_of_tests is not None:                # Since some countries do not publish daily data on tests (looking at you Germany!) I make this calculation optional 
+            # Calculating 7 and 14 day rolling sum for TEST NUMBER
+            Tests_7_Day_Sum=list(rolling_sum(list_of_tests))
+            Tests_14_Day_Sum=list(rolling_sum(list_of_tests,interval=14))
+            # Calculating smoothened īpatsvars (positive tests)
+            Positive_rate_7_Days=list(map(lambda x,y: calculateTestPositivity(x,y),New_Cases_7_Day_Sum,Tests_7_Day_Sum))
+
+            result=[list_of_cases,list_of_tests,Estimated_R0,Positive_rate_7_Days,            New_Cases_7_Day_Mean,New_Cases_100K_7_Days,New_Cases_7_Day_Sum,Tests_7_Day_Sum,New_Cases_14_Day_Mean,New_Cases_100K_14_Days,New_Cases_14_Day_Sum,Tests_14_Day_Sum]
+            header_names=['New Cases','Tests administered','R (estimate)','Positive Rate 7d','7d mean','Cases100k_7days','Cases Sum 7d','Tests Sum 14d','14d mean','Cases100k_14days','Cases Sum 14d','Tests Sum 14d']
+        else:
+            result=[list_of_cases,Estimated_R0,New_Cases_7_Day_Mean,New_Cases_100K_7_Days,New_Cases_7_Day_Sum,New_Cases_14_Day_Mean,New_Cases_100K_14_Days,New_Cases_14_Day_Sum]
+            header_names=['New Cases','R (estimate)','7d mean','Cases100k_7days','Cases Sum 7d','14d mean','Cases100k_14days','Cases Sum 14d']
+
+        
+        return result, header_names
+        
+
+    except Exception as e:
+        logger.error(e)
+
+def calculateTestPositivity(new_cases,new_tests):
+    """
+    Calculates how many tests where positive
+
+    Parameters
+    ----------
+    new_cases : int
+        An integer containing amount of (new) cases
+    new_tests : int
+        An integer containing amount of (new) tests
+
+    Returns
+    -------
+    float
+        A percentage
+    """
+    try:
+        if new_cases is None or new_tests is None:
+            return None
+        else:
+            return (new_cases/new_tests)/7
+
+    except Exception as e:
+        logger.error(e)
+
+
+def calculateR(last7days_cases,last14days_cases,constant_int=5):
+    """
+    Calculates the R value over 7 days. Therefore it needs 14 days of data
+
+    Parameters
+    ----------
+    last7days_cases : int
+        An integer containing the sum of the cases in the last 7 days
+    last14days_cases : int
+        An integer containing the sum of the cases in the last 14 days
+    constant_int : int, optional
+        An integer which keep the R-value from becoming infinity because it has been divided by zero
+
+    Returns
+    -------
+    float
+        A R_0 value
+    """
+    try:
+        if last7days_cases is None or last14days_cases is None:
+            return None
+        else:
+            last_week_7days_Sum=last14days_cases-last7days_cases
+            return (last7days_cases+constant_int)/(last_week_7days_Sum+constant_int)
+
+    except Exception as e:
+        logger.error(e)
+
 def simulate_new_cases(R_range,current_number,population,window_length=56):
     """
     Simulates daily new cases (in general and per 100k) according to a specified range of R; adds Date column
@@ -104,18 +207,52 @@ def simulate_new_cases(R_range,current_number,population,window_length=56):
         newdf7.columns=colName7
         newdf14.columns=colName14
 
-        # return pd.concat([newdf.reset_index(drop=True),newdf7.reset_index(drop=True), newdf14], axis=1)
-        
-        #return pd.concat([newdf.reset_index(drop=True),newdf7.reset_index(drop=True), newdf14], axis=1).insert(0, 'Date', pd.date_range(start='today', periods=window_length, freq='D').map(lambda t: t.strftime('%Y-%m-%d')),inplace=True)
         days = pd.Series(pd.date_range(start='today', periods=window_length, freq='D').map(lambda t: t.strftime('%Y-%m-%d')),name='Date')
         return pd.concat([days,newdf.reset_index(drop=True),newdf7.reset_index(drop=True), newdf14], axis=1)
 
-        # simulated_df = pd.concat([newdf.reset_index(drop=True),newdf7.reset_index(drop=True), newdf14], axis=1)
-        # Add Date column
-        # simulated_df = simulated_df.insert(0, 'Date', pd.date_range(start='today', periods=len(simulated_df), freq='D').map(lambda t: t.strftime('%Y-%m-%d')))
-        # return simulated_df.insert(0, 'Date', pd.date_range(start='today', periods=len(simulated_df), freq='D').map(lambda t: t.strftime('%Y-%m-%d')))
-        # return simulated_df
+    except Exception as e:
+        logger.error(e)
 
+def simulate_new_cases_pandaless(R_range,new_cases_avg,population,window_length=56):
+    """
+    Simulates daily new cases (in general and per 100k) according to a specified range of R; adds Date column
+    
+    Parameters
+    ----------
+    R_range : list
+        A list of floats representing the range of R
+    new_cases_avg : int
+        The current number of new cases
+    population : int
+        The population of a country
+    window_length : int
+        The amount of days to forecast (default is 56)
+
+    Returns
+    -------
+    list
+        A list of simulated new cases for each day
+    list
+        A list of the cases per 100k KPI for 7 days
+    list
+        A list of the cases per 100k KPI for 14 days
+    """
+    try:
+        new_cases_list=[]
+        casesPer100k_7d_list=[]
+        casesPer100k_14d_list=[]
+        for R_s in R_range:
+            step_value=(R_s-1)/7
+            new_cases=np.arange(start=1,stop=1+(step_value*window_length),step=step_value)*new_cases_avg
+            New_Cases_7_Day_Sum=rolling_sum(new_cases,interval=7)
+            New_Cases_14_Day_Sum=rolling_sum(new_cases,interval=14)
+            FC_cases_per100k_7d=list(map(lambda x: (x/population)*100000 if x is not None else None,New_Cases_7_Day_Sum))
+            FC_cases_per100k_14d=list(map(lambda x: (x/population)*100000 if x is not None else None,New_Cases_14_Day_Sum))        
+            new_cases_list.append(list(new_cases))
+            casesPer100k_7d_list.append(FC_cases_per100k_7d)
+            casesPer100k_14d_list.append(FC_cases_per100k_14d)
+
+        return new_cases_list, casesPer100k_7d_list, casesPer100k_14d_list
 
     except Exception as e:
         logger.error(e)
@@ -160,7 +297,8 @@ def simulate_threshold_dates(R_range,new_cases_avg,population,thresholds=[10,20,
             ### FC_cases_per100k function
             step_value=(R_s-1)/7
             new_cases=np.arange(start=1,stop=1+(step_value*window_length),step=step_value)*new_cases_avg # verify if this works
-            FC_cases_per100k=rolling_sum(new_cases,interval=interval)/population*100000 # for sum7=False we need rolling_sum(new_cases,interval=14)         
+            New_Cases_Sum=rolling_sum(new_cases,interval=interval)
+            FC_cases_per100k=list(map(lambda x: (x/population)*100000 if x is not None else None,New_Cases_Sum)) # for sum7=False we need rolling_sum(new_cases,interval=14)         
             R_dict[R_s]=FC_cases_per100k   
 
         result_list=[R_range]
@@ -189,7 +327,7 @@ def simulate_threshold_dates(R_range,new_cases_avg,population,thresholds=[10,20,
         logger.error(e)
 
 
-def verify_threshold(FC_cases_per100k,threshold,interval=7):
+def verify_threshold(simulated_cases_per100k,threshold,interval=7):
     """
     Subfunction of simulate_threshold_dates.  Calculates after how many days a threshold is reached
 
@@ -208,15 +346,16 @@ def verify_threshold(FC_cases_per100k,threshold,interval=7):
         An integer of how many days it takes to reach that threshold or nan if the threshold can't be reached
     """
     try:
+        FC_cases_per100k=simulated_cases_per100k[interval:]
         if threshold<FC_cases_per100k[0]:
-            index_threshold=np.flatnonzero(FC_cases_per100k<threshold)
+            index_threshold=next((x[0] for x in enumerate(FC_cases_per100k) if x[1] < threshold),None)
         else:
-            index_threshold=np.flatnonzero(FC_cases_per100k>threshold)
+            index_threshold=next((x[0] for x in enumerate(FC_cases_per100k) if x[1] > threshold),None)
         
-        if index_threshold.size!=0:
-            return index_threshold[0]+interval
+        if index_threshold is not None:
+            return index_threshold+interval
         else:
-            return np.nan
+            return None
 
          
     except Exception as e:
@@ -239,9 +378,11 @@ def rolling_sum(list_of_cases,interval=7):
         A list of rolling sums. Be aware that this list is exactly the `interval` amount shorter than `list_of_cases`
     """
     try:
-        cumulated_sum=np.cumsum(list_of_cases,dtype=float)
+        cumulated_sum=np.cumsum(list_of_cases,dtype=int)
         rolling_sum=cumulated_sum[interval:]-cumulated_sum[:-interval]
-        return rolling_sum
+        result=list(np.repeat(None,interval))
+        result.extend(list(rolling_sum))
+        return result
 
     except Exception as e:
         logger.error(e)
@@ -290,7 +431,7 @@ def download_covid_data(url,country='lv'):
 
 ## create separate download covid data functions for LV and DE
 
-def download_lv_covid_data(url):
+def download_lv_covid_data(url,pandaless=True):
     """
     Downloads covid data from a url and returns a status code if the download fails.
 
@@ -309,8 +450,21 @@ def download_lv_covid_data(url):
         response = requests.get(url)
         if response.status_code==200:
             resp_dict=json.loads(response.content)
-            raw_df=pd.json_normalize(resp_dict.get('result').get('records'))
-            return raw_df
+            if pandaless:
+                original_list=resp_dict.get('result').get('records')
+                cases_dict={}
+                tests_dict={}
+                for item in original_list:
+                    current_date=item['Datums']
+                    new_cases=int(item['ApstiprinataCOVID19InfekcijaSkaits'])
+                    new_tests=int(item['TestuSkaits'])
+                    cases_dict[current_date]=new_cases
+                    tests_dict[current_date]=new_tests            
+                
+                return cases_dict, tests_dict
+            else:
+                raw_df=pd.json_normalize(resp_dict.get('result').get('records'))
+                return raw_df
 
         else:
             logger.error(f'Get request failed with HTTP status code: {response.status_code}')
