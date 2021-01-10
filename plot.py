@@ -123,3 +123,129 @@ fig.update_layout(
 
 
 fig.show()
+
+
+
+##########################################################################
+
+# Plot smoothened cases
+
+import plotly.graph_objects as go
+
+# Create figure
+fig = go.Figure()
+
+# Add traces
+fig.add_trace(
+    go.Table(
+    header=dict(values=headers_smoothened,
+                fill_color='paleturquoise',
+                align='left'),
+    cells=dict(values=smoothened_list,
+               fill_color='lavender',
+               align='left'),
+               visible=True
+               )
+)
+
+fig.write_html("plot_output/smoothened_example.html")
+
+# Plot simulated thresholds
+
+# Create figure
+fig = go.Figure()
+
+# Add traces
+fig.add_trace(
+    go.Table(
+    header=dict(values=threshold_days_list,
+                fill_color='paleturquoise',
+                align='left'),
+    cells=dict(values=threshold_days_header,
+               fill_color='lavender',
+               align='left'),
+               visible=True
+               )
+)
+
+fig.write_html("plot_output/threshold_days_example.html")
+
+
+
+# Plot simulated cases
+
+fig = go.Figure()
+
+#Cases per 100k 7days
+fig.add_trace(
+    go.Table(
+    header=dict(values=simulated_cases_header,
+                fill_color='paleturquoise',
+                align='left'),
+    cells=dict(values=simulated_casesPer100k_7d,
+               fill_color='lavender',
+               align='left'),
+               visible=True,
+               )
+
+)
+
+#Cases per 100k 14days
+fig.add_trace(
+    go.Table(
+    header=dict(values=simulated_cases_header,
+                fill_color='paleturquoise',
+                align='left'),
+    cells=dict(values=simulated_casesPer100k_14d,
+               fill_color='lavender',
+               align='left'),
+               visible=False,
+               )
+)
+
+#Only new cases
+fig.add_trace(
+    go.Table(
+    header=dict(values=simulated_cases_header,
+                fill_color='paleturquoise',
+                align='left'),
+    cells=dict(values=simulated_new_cases,
+               fill_color='lavender',
+               align='left'),
+               visible=False,
+               )
+
+)
+
+fig.update_layout(
+    updatemenus=[
+        dict(
+            active=0,
+            buttons=list([
+                dict(
+                    label='Cases per 100k 7days',
+                    method='update',
+                    args=[{"visible":[True,False,False]}]
+                ),
+                dict(
+                    label='Cases per 100k 14days',
+                    method="update",
+                    args=[{"visible":[False,True,False]}]
+                ),
+                dict(
+                    label='New cases (daily)',
+                    method="update",
+                    args=[{"visible":[False,False,True]}]
+                )
+            ]),
+            x=1,
+            xanchor="right",
+            y=1.2,
+            yanchor="top"
+        )
+    ]
+)
+
+
+
+fig.write_html("plot_output/simulated_example.html")
