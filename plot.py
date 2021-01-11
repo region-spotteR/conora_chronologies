@@ -130,6 +130,23 @@ fig.show()
 
 # Plot smoothened cases
 
+## reverse the order of smoothened cases (maybe this needs to go into the function as well)
+smoothened_list_rev=[x.reverse() for x in smoothened_list]
+
+## generate a color theme for tables (make this a method)
+length=len(smoothened_list_rev[0])
+rowEvenColor = '#F3EED9'#'#FFE3F1'#'#FFAFAE'
+rowOddColor = 'white'
+if (length%2)==0:
+    rowColors=[rowOddColor,rowEvenColor]*int(length/2)
+else:
+    denominator=int((length-1)/2)
+    rowColors=[rowOddColor,rowEvenColor]*int(denominator/2)
+    rowColors.append(rowOddColor)
+
+fillColorList=[rowColors*len(smoothened_list_rev)]
+
+
 import plotly.graph_objects as go
 
 # Create figure
@@ -138,17 +155,19 @@ fig = go.Figure()
 # Add traces
 fig.add_trace(
     go.Table(
-    header=dict(values=headers_smoothened,
-                fill_color='paleturquoise',
-                align='left'),
-    cells=dict(values=smoothened_list,
-               fill_color='lavender',
+    header=dict(values=headers_smoothened_bold,
+                fill_color='#9E3039',
+                align='left',
+                font=dict(color='white', size=12)
+                ),
+    cells=dict(values=smoothened_list_rev,
+               fill_color=fillColorList, # dictionary here
                align='left'),
                visible=True
                )
 )
 
-fig.write_html("plot_output/smoothened_example.html")
+fig.write_html("plot_output/smoothened_example2_lv.html")
 
 # Plot simulated thresholds
 
