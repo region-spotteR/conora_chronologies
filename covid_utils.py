@@ -6,6 +6,7 @@ import numpy as np
 from loguru import logger
 import sys
 from collections import OrderedDict
+from datetime import datetime, timedelta
 
 logger.add(sys.stderr, format="{time} {level} {message}", filter="my_module", level="INFO")
 logger.add(sys.stderr, format="{time} {level} {message}", filter="my_module", level="ERROR")
@@ -66,17 +67,19 @@ def calculate_smoothened_values(df,dateColName,caseColName,population,testColNam
     except Exception as e:
         logger.error(e)
 
-def calculate_smoothened_values_pandaless(list_of_cases,population,list_of_tests=None):
+def calculate_smoothened_values_pandaless(population,list_of_cases,list_of_days,list_of_tests=None):
     """
     Calculates smoothened covid case values by applying rolling averages and sums over 7 and 14 days. It also calculates an estimated r0 and new case per 100k for 7 and 14 days.
     If there is a daily test data it also calculates a test positive rate over 7 days.
     
     Parameters
     ----------
-    list_of_cases : list
-        A list sorted by date (chronologically) containing the daily new cases
     population : int
         The population of a country
+    list_of_cases : list
+        A list sorted by date (chronologically) containing the daily new cases
+    list_of_days : list
+        A list sorted by date (chronologically) containing the dates of new cases
     list_of_tests : list, optional
         A list sorted by date (chronologically) containing the tests reported on that day
 
@@ -102,12 +105,13 @@ def calculate_smoothened_values_pandaless(list_of_cases,population,list_of_tests
             Tests_14_Day_Sum=list(rolling_sum(list_of_tests,interval=14))
             # Calculating smoothened īpatsvars (positive tests)
             Positive_rate_7_Days=list(map(lambda x,y: calculateTestPositivity(x,y),New_Cases_7_Day_Sum,Tests_7_Day_Sum))
+            Positive_rate_daily=list(map(lambda x,y: calculateTestPositivity(x,y),list_of_cases,list_of_tests))
 
-            result=[list_of_cases,list_of_tests,Estimated_R0,Positive_rate_7_Days,            New_Cases_7_Day_Mean,New_Cases_100K_7_Days,New_Cases_7_Day_Sum,Tests_7_Day_Sum,New_Cases_14_Day_Mean,New_Cases_100K_14_Days,New_Cases_14_Day_Sum,Tests_14_Day_Sum]
-            header_names=['New Cases','Tests administered','R (estimate)','Positive Rate 7d','7d mean','Cases100k_7days','Cases Sum 7d','Tests Sum 14d','14d mean','Cases100k_14days','Cases Sum 14d','Tests Sum 14d']
+            result=[list_of_days,list_of_cases,list_of_tests,Positive_rate_daily,Estimated_R0,Positive_rate_7_Days,            New_Cases_7_Day_Mean,New_Cases_100K_7_Days,New_Cases_7_Day_Sum,Tests_7_Day_Sum,New_Cases_14_Day_Mean,New_Cases_100K_14_Days,New_Cases_14_Day_Sum,Tests_14_Day_Sum]
+            header_names=['Date','New Cases','Tests administered','Positive Rate','R (estimate)','Positive Rate 7d','7d mean','Cases100k_7days','Cases Sum 7d','Tests Sum 7d','14d mean','Cases100k_14days','Cases Sum 14d','Tests Sum 14d']
         else:
-            result=[list_of_cases,Estimated_R0,New_Cases_7_Day_Mean,New_Cases_100K_7_Days,New_Cases_7_Day_Sum,New_Cases_14_Day_Mean,New_Cases_100K_14_Days,New_Cases_14_Day_Sum]
-            header_names=['New Cases','R (estimate)','7d mean','Cases100k_7days','Cases Sum 7d','14d mean','Cases100k_14days','Cases Sum 14d']
+            result=[list_of_days,list_of_cases,Estimated_R0,New_Cases_7_Day_Mean,New_Cases_100K_7_Days,New_Cases_7_Day_Sum,New_Cases_14_Day_Mean,New_Cases_100K_14_Days,New_Cases_14_Day_Sum]
+            header_names=['Date','New Cases','R (estimate)','7d mean','Cases100k_7days','Cases Sum 7d','14d mean','Cases100k_14days','Cases Sum 14d']
 
         
         return result, header_names
@@ -238,9 +242,13 @@ def simulate_new_cases_pandaless(R_range,new_cases_avg,population,window_length=
         A list of the cases per 100k KPI for 14 days
     """
     try:
-        new_cases_list=[]
-        casesPer100k_7d_list=[]
-        casesPer100k_14d_list=[]
+        # create range of dates and insert it at the beginning of the list
+        base = datetime.today()
+        date_list = [base + timedelta(days=x) for x in range(window_length)]
+
+        new_cases_list=[date_list]
+        casesPer100k_7d_list=[date_list]
+        casesPer100k_14d_list=[date_list]
         for R_s in R_range:
             step_value=(R_s-1)/7
             new_cases=np.arange(start=1,stop=1+(step_value*window_length),step=step_value)*new_cases_avg
@@ -327,7 +335,7 @@ def simulate_threshold_dates(R_range,new_cases_avg,population,thresholds=[10,20,
         logger.error(e)
 
 
-def verify_threshold(simulated_cases_per100k,threshold,interval=7):
+def verify_threshold(simulated_cases_per100k,threshold,interval=7,returnDates=False):
     """
     Subfunction of simulate_threshold_dates.  Calculates after how many days a threshold is reached
 
@@ -353,7 +361,13 @@ def verify_threshold(simulated_cases_per100k,threshold,interval=7):
             index_threshold=next((x[0] for x in enumerate(FC_cases_per100k) if x[1] > threshold),None)
         
         if index_threshold is not None:
-            return index_threshold+interval
+            if returnDates:
+                return index_threshold+interval
+            else:
+                days_till_threshold=index_threshold+interval
+                threshold_date = datetime.today()+timedelta(days=days_till_threshold)
+                return(threshold_date)
+
         else:
             return None
 
