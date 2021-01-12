@@ -164,4 +164,7 @@ dmypy.json
 # ignore all files which start with test
 test*.*
 
+# ignore the download cache folder
+download_cache/*
+
 # End of https://www.toptal.com/developers/gitignore/api/vscode,python,jupyternotebooks

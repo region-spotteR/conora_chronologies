@@ -7,6 +7,8 @@ from loguru import logger
 import sys
 from collections import OrderedDict
 from datetime import datetime, timedelta
+import pathlib
+import pickle
 
 logger.add(sys.stderr, format="{time} {level} {message}", filter="my_module", level="INFO")
 logger.add(sys.stderr, format="{time} {level} {message}", filter="my_module", level="ERROR")
@@ -67,7 +69,7 @@ def calculate_smoothened_values(df,dateColName,caseColName,population,testColNam
     except Exception as e:
         logger.error(e)
 
-def calculate_smoothened_values_pandaless(population,list_of_cases,list_of_days,list_of_tests=None):
+def calculate_smoothened_values_pandaless(population,list_of_cases,list_of_days,list_of_tests=None,reversed_dates=True):
     """
     Calculates smoothened covid case values by applying rolling averages and sums over 7 and 14 days. It also calculates an estimated r0 and new case per 100k for 7 and 14 days.
     If there is a daily test data it also calculates a test positive rate over 7 days.
@@ -82,6 +84,9 @@ def calculate_smoothened_values_pandaless(population,list_of_cases,list_of_days,
         A list sorted by date (chronologically) containing the dates of new cases
     list_of_tests : list, optional
         A list sorted by date (chronologically) containing the tests reported on that day
+    reversed_dates : bool
+        A boolean which is true if the result dictionary should be sorted from most current to oldest date. If False the dictionary is sorted from oldest to most current date.
+
 
     Returns
     -------
@@ -305,7 +310,7 @@ def simulate_threshold_dates(R_range,new_cases_avg,population,thresholds=[10,20,
             ### FC_cases_per100k function
             step_value=(R_s-1)/7
             new_cases=np.arange(start=1,stop=1+(step_value*window_length),step=step_value)*new_cases_avg # verify if this works
-            New_Cases_Sum=rolling_sum(new_cases,interval=interval)
+            New_Cases_Sum=rolling_sum(new_cases,interval=interval,reversed_dates=False)
             FC_cases_per100k=list(map(lambda x: (x/population)*100000 if x is not None else None,New_Cases_Sum)) # for sum7=False we need rolling_sum(new_cases,interval=14)         
             R_dict[R_s]=FC_cases_per100k   
 
@@ -375,7 +380,7 @@ def verify_threshold(simulated_cases_per100k,threshold,interval=7,returnDates=Fa
     except Exception as e:
         logger.error(e)
 
-def rolling_sum(list_of_cases,interval=7):
+def rolling_sum(list_of_cases,interval=7,reversed_dates=True):
     """
     Calculates the rolling sum over a specified interval
 
@@ -385,6 +390,9 @@ def rolling_sum(list_of_cases,interval=7):
         The list of cases
     interval : int
         An integer indicating over which period the rolling sum should be taken
+    reversed_dates : bool
+        A boolean which is true if the result dictionary should be sorted from most current to oldest date. If False the dictionary is sorted from oldest to most current date.
+
 
     Returns
     -------
@@ -393,15 +401,21 @@ def rolling_sum(list_of_cases,interval=7):
     """
     try:
         cumulated_sum=np.cumsum(list_of_cases,dtype=int)
-        rolling_sum=cumulated_sum[interval:]-cumulated_sum[:-interval]
-        result=list(np.repeat(None,interval))
-        result.extend(list(rolling_sum))
-        return result
+        rolling_sum=list(cumulated_sum[interval:]-cumulated_sum[:-interval])
+        if reversed_dates:
+            emptyItems=list(np.repeat(None,interval))
+            rolling_sum.extend(emptyItems)
+            return rolling_sum
+        else:
+            result=list(np.repeat(None,interval))
+            result.extend(rolling_sum)
+            return result
 
     except Exception as e:
         logger.error(e)
 
 
+############################################## this should go in a seperate load_data.py ##################
 
 # there is still post request here!
 def download_covid_data(url,country='lv'):
@@ -442,10 +456,40 @@ def download_covid_data(url,country='lv'):
         logger.error(e)
 
 
+def cache_dict(obj, name ):
+    with open('download_cache/'+ name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+def load_cached_dict(name ):
+    with open('download_cache/' + name + '.pkl', 'rb') as f:
+        return pickle.load(f)
+
+
+def verify_cache_existence():
+    """
+    Compares the cache file date with the current date and returns a boolean
+    
+    Returns
+    -------
+    Bool
+        A boolean. True if the current data is up to date, False otherwise
+    """
+    try:
+        fname = pathlib.Path('download_cache/cases_lv.pkl')
+        if fname.exists():
+            mtime = datetime.fromtimestamp(fname.stat().st_mtime)
+            return datetime.today().date()<=mtime.date()
+        else:
+            logger.info(f'No cache file with the name: {fname}. It will be created')
+            return False
+
+    except Exception as e:
+        logger.error(e)
+
 
 ## create separate download covid data functions for LV and DE
 
-def download_lv_covid_data(url,pandaless=True):
+def download_lv_covid_data(url,reversed_dates=True):
     """
     Downloads covid data from a url and returns a status code if the download fails.
 
@@ -453,35 +497,49 @@ def download_lv_covid_data(url,pandaless=True):
     ----------
     url : string
         The request url
+    reversed_dates : bool
+        A boolean which is true if the result dictionary should be sorted from most current to oldest date. If False the dictionary is sorted from oldest to most current date.
 
     Returns
     -------
-    DataFrame
-        a DataFrame with raw data
+    List
+        A list with new daily cases in chronological order from oldest to most current date
+    List
+        A list with the amount of covid tests in chronological order from oldest to most current date
     """
 
     try:
-        response = requests.get(url)
-        if response.status_code==200:
-            resp_dict=json.loads(response.content)
-            if pandaless:
+        if verify_cache_existence():
+            cases_dict=load_cached_dict('cases_lv')
+            tests_dict=load_cached_dict('tests_lv')
+            return cases_dict, tests_dict
+        else:
+            response = requests.get(url)
+            if response.status_code==200:
+                resp_dict=json.loads(response.content)
                 original_list=resp_dict.get('result').get('records')
                 cases_dict={}
                 tests_dict={}
-                for item in original_list:
+                if reversed_dates:
+                    loop_range=range(len(original_list)-1,-1,-1)
+                else:
+                    loop_range=range(0,len(original_list))
+
+                for i in loop_range:
+                    item=original_list[i]
                     current_date=item['Datums']
                     new_cases=int(item['ApstiprinataCOVID19InfekcijaSkaits'])
                     new_tests=int(item['TestuSkaits'])
                     cases_dict[current_date]=new_cases
                     tests_dict[current_date]=new_tests            
                 
+                # caching the data and then returning it
+                cache_dict(cases_dict,'cases_lv')
+                cache_dict(tests_dict,'tests_lv')
                 return cases_dict, tests_dict
-            else:
-                raw_df=pd.json_normalize(resp_dict.get('result').get('records'))
-                return raw_df
 
-        else:
-            logger.error(f'Get request failed with HTTP status code: {response.status_code}')
+            else:
+                logger.error(f'Get request failed with HTTP status code: {response.status_code}')
 
     except Exception as e:
         logger.error(e)
@@ -516,7 +574,7 @@ def download_de_covid_data(url):
     except Exception as e:
         logger.error(e)
 
-def download_de_covid_data_pandaless(url):
+def download_de_covid_data_pandaless(url,reversed_dates=True):
     """
     Downloads covid data from a url and returns a status code if the download fails. Is way faster since it doesn't use pandas
 
@@ -524,6 +582,8 @@ def download_de_covid_data_pandaless(url):
     ----------
     url : string
         The request url
+    reversed_dates : bool
+        A boolean which is true if the result dictionary should be sorted from most current to oldest date. If False the dictionary is sorted from oldest to most current date.
 
     Returns
     -------
@@ -532,28 +592,35 @@ def download_de_covid_data_pandaless(url):
     """
 
     try:
-        response=requests.get(url)
-        if response.status_code==200:
-            resp_dict=json.loads(response.content)
-
-            original_list=resp_dict['features']
-            day_dict = {}
-            for elem in original_list:
-                item=elem['properties']
-                current_date=item['Meldedatum']
-                if current_date not in day_dict:
-                    day_dict[current_date]=item['AnzahlFall']
-                else:
-                    day_dict[current_date]+=item['AnzahlFall'] # Summing up the data
-
-            day_dict_sorted=OrderedDict()
-            for key in sorted(day_dict.keys()):
-                day_dict_sorted[key]=day_dict[key]
-
-            return day_dict_sorted
-
+        if verify_cache_existence():
+            cases_dict=load_cached_dict('cases_de')
+            return cases_dict
         else:
-            logger.error(f'Get request failed with HTTP status code: {response.status_code}')
+
+            response=requests.get(url)
+            if response.status_code==200:
+                resp_dict=json.loads(response.content)
+
+                original_list=resp_dict['features']
+                day_dict = {}
+                for elem in original_list:
+                    item=elem['properties']
+                    current_date=item['Meldedatum']
+                    if current_date not in day_dict:
+                        day_dict[current_date]=item['AnzahlFall']
+                    else:
+                        day_dict[current_date]+=item['AnzahlFall'] # Summing up the data
+
+                day_dict_sorted=OrderedDict()
+                for key in sorted(day_dict.keys(),reverse=reversed_dates):
+                    day_dict_sorted[key]=day_dict[key]
+
+                # caching the data and then returning it
+                cache_dict(cases_dict,'cases_lv')                
+                return day_dict_sorted
+
+            else:
+                logger.error(f'Get request failed with HTTP status code: {response.status_code}')
 
     except Exception as e:
         logger.error(e)
