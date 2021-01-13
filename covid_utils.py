@@ -249,7 +249,7 @@ def simulate_new_cases_pandaless(R_range,new_cases_avg,population,window_length=
     try:
         # create range of dates and insert it at the beginning of the list
         base = datetime.today()
-        date_list = [base + timedelta(days=x) for x in range(window_length)]
+        date_list = [(base + timedelta(days=x)).date().isoformat() for x in range(window_length)]
 
         new_cases_list=[date_list]
         casesPer100k_7d_list=[date_list]
@@ -371,7 +371,7 @@ def verify_threshold(simulated_cases_per100k,threshold,interval=7,returnDates=Fa
             else:
                 days_till_threshold=index_threshold+interval
                 threshold_date = datetime.today()+timedelta(days=days_till_threshold)
-                return(threshold_date)
+                return(threshold_date.date().isoformat())
 
         else:
             return None
@@ -465,7 +465,7 @@ def load_cached_dict(name ):
         return pickle.load(f)
 
 
-def verify_cache_existence():
+def verify_cache_existence(country):
     """
     Compares the cache file date with the current date and returns a boolean
     
@@ -475,7 +475,7 @@ def verify_cache_existence():
         A boolean. True if the current data is up to date, False otherwise
     """
     try:
-        fname = pathlib.Path('download_cache/cases_lv.pkl')
+        fname = pathlib.Path(f'download_cache/cases_{country}.pkl')
         if fname.exists():
             mtime = datetime.fromtimestamp(fname.stat().st_mtime)
             return datetime.today().date()<=mtime.date()
@@ -509,7 +509,7 @@ def download_lv_covid_data(url,reversed_dates=True):
     """
 
     try:
-        if verify_cache_existence():
+        if verify_cache_existence('lv'):
             cases_dict=load_cached_dict('cases_lv')
             tests_dict=load_cached_dict('tests_lv')
             return cases_dict, tests_dict
@@ -527,7 +527,7 @@ def download_lv_covid_data(url,reversed_dates=True):
 
                 for i in loop_range:
                     item=original_list[i]
-                    current_date=item['Datums']
+                    current_date=item['Datums'].split('T')[0]
                     new_cases=int(item['ApstiprinataCOVID19InfekcijaSkaits'])
                     new_tests=int(item['TestuSkaits'])
                     cases_dict[current_date]=new_cases
@@ -592,7 +592,7 @@ def download_de_covid_data_pandaless(url,reversed_dates=True):
     """
 
     try:
-        if verify_cache_existence():
+        if verify_cache_existence('de'):
             cases_dict=load_cached_dict('cases_de')
             return cases_dict
         else:
@@ -605,7 +605,7 @@ def download_de_covid_data_pandaless(url,reversed_dates=True):
                 day_dict = {}
                 for elem in original_list:
                     item=elem['properties']
-                    current_date=item['Meldedatum']
+                    current_date=item['Meldedatum'].split(' ')[0].replace('/','-')
                     if current_date not in day_dict:
                         day_dict[current_date]=item['AnzahlFall']
                     else:
@@ -616,7 +616,7 @@ def download_de_covid_data_pandaless(url,reversed_dates=True):
                     day_dict_sorted[key]=day_dict[key]
 
                 # caching the data and then returning it
-                cache_dict(cases_dict,'cases_lv')                
+                cache_dict(day_dict_sorted,'cases_de')                
                 return day_dict_sorted
 
             else:
