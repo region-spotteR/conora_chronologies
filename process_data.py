@@ -30,12 +30,20 @@ def process_data_and_create_plots(country='lv'):
             cases_dict,tests_dict=download_lv_covid_data(url,reversed_dates=from_young_to_old_dates)
             population=1907675
             list_of_tests_by_day=list(tests_dict.values())
+            country_name='Latvia'
+
+
+            # Thresholds for the threshold days plot
+            CasesPer100k_thresholds=[10,20,50,100,200,400,600,800,1000]
 
             # color configuration
             rowEvenColor = '#F3EED9'#'#FFE3F1'#'#FFAFAE'
             rowOddColor = 'white'
             headerBGcolor='#9E3039'
             headerFontColor='white'
+            titleColor = '#9E3039'
+            titleFontSize = 27
+
 
         elif country=='de':
             url='https://opendata.arcgis.com/datasets/dd4580c810204019a7b8eb3e0b329dd6_0.geojson'
@@ -43,11 +51,18 @@ def process_data_and_create_plots(country='lv'):
             cases_dict=download_de_covid_data_pandaless(url,reversed_dates=from_young_to_old_dates)
             list_of_tests_by_day=None
             population=83190556 # Germany September 2020 population estimate
+            country_name='Germany'
+
+            # Thresholds for the threshold days plot
+            CasesPer100k_thresholds=[10,20,50,100,200,400,600,800,1000]
+
 
             rowEvenColor = '#FFE6D9'#'#FFE3F1'#'#FFAFAE'
             rowOddColor = 'white'
             headerBGcolor='#FFCE00'
             headerFontColor='black'
+            titleColor = 'black'
+            titleFontSize = 27
 
         else:
             logger.error(f'No download method for country {country} available')
@@ -80,8 +95,8 @@ def process_data_and_create_plots(country='lv'):
             mean7d=smoothened_list[headers_smoothened.index('7d mean')]
             new_cases_avg=mean7d[len(mean7d)-1]
         
-        threshold_days_list=simulate_threshold_dates(Range_for_R,new_cases_avg,population)
-        threshold_days_header=['R']+list(map(str,[10,20,50,100,200,400,600,800,1000]))
+        threshold_days_list=simulate_threshold_dates(Range_for_R,new_cases_avg,population,CasesPer100k_thresholds)
+        threshold_days_header=['Assumed R value']+list(map(str,CasesPer100k_thresholds))
 
         ## simulate new cases
         simulated_new_cases, simulated_casesPer100k_7d, simulated_casesPer100k_14d=simulate_new_cases_pandaless(Range_for_R,new_cases_avg,population)
@@ -92,7 +107,6 @@ def process_data_and_create_plots(country='lv'):
 
         ######################################## smoothened dataset #######################################
         
-        # Create figure
         fig = go.Figure()
 
 
@@ -155,6 +169,13 @@ def process_data_and_create_plots(country='lv'):
 
 
         fig.update_layout(
+            title=dict(
+                text=f"<b> Corona statistics for {country_name} </b>",
+                font=dict(
+                    size=titleFontSize,
+                    color=titleColor
+                ),
+                ),
             updatemenus=[
                 dict(
                     active=0,
@@ -177,7 +198,7 @@ def process_data_and_create_plots(country='lv'):
                     ]),
                     x=1,
                     xanchor="right",
-                    y=1.2,
+                    y=1.07,
                     yanchor="top"
                 )
             ]
@@ -185,31 +206,90 @@ def process_data_and_create_plots(country='lv'):
 
         fig.write_html(f'plot_output/smoothened_example_{country}.html')
 
+
         print("Finished plotting smoothened data --- %s seconds ---" % (time.time() - start_time))
 
 
         ######################################## threshold dataset #######################################
-        fig = go.Figure()
 
-        fillColorList=create_fill_colors(threshold_days_list,rowEvenColor,rowOddColor)
-        headers_threshold_bold=[f'<b>{x} </b>' for x in threshold_days_header]
+        firstColumnAboveCurrentCasesPer100k=next((i for i in range(1,len(threshold_days_list)) if threshold_days_list[i][0] is None),len(threshold_days_list))
+        first_simulated_R_above_one=next((i for i in range(0,len(Range_for_R)) if Range_for_R[i]>1),len(Range_for_R))
 
-        # Add traces
-        fig.add_trace(
-            go.Table(
-            header=dict(values=headers_threshold_bold,
-                        fill_color=headerBGcolor,
-                        align='left',
-                        font=dict(color=headerFontColor, size=12)
-                        ),
-            cells=dict(values=threshold_days_list,
-                    fill_color=fillColorList,
-                    align='left'),
-                    visible=True
+        # for stuff which is BELOW the current cases per 100k
+        
+        if firstColumnAboveCurrentCasesPer100k>1:       # If the second column already contains data above our current cases per 100k this, then all columns contain data above our current cases per 100k
+            below_threshold_list=[threshold_days_list[i][:first_simulated_R_above_one] for i in range(0,firstColumnAboveCurrentCasesPer100k)]
+            below_threshold_headers=[headers_threshold_bold[i] for i in range(0,firstColumnAboveCurrentCasesPer100k)]
+
+            fillColorList=create_fill_colors(below_threshold_list,rowEvenColor,rowOddColor)
+            
+            fig = go.Figure()
+
+            # Add traces
+            fig.add_trace(
+                go.Table(
+                header=dict(values=below_threshold_headers,
+                            fill_color=headerBGcolor,
+                            align='left',
+                            font=dict(color=headerFontColor, size=12)
+                            ),
+                cells=dict(values=below_threshold_list,
+                        fill_color=fillColorList,
+                        align='left'),
+                        visible=True
+                        )
+            )
+
+            fig.update_layout(
+                title=dict(
+                    text=f"<b> {country_name}: Dates when the cases per 100k fall <em> below </em> a threshold </b>",
+                    font=dict(
+                        size=titleFontSize,
+                        color=titleColor
+                    ),
                     )
-        )
+            )
 
-        fig.write_html(f"plot_output/threshold_days_example_{country}.html")
+            fig.write_html(f"plot_output/threshold_days_example_{country}_below.html")
+        
+        # for stuff which is ABOVE the current cases per 100k
+
+        if firstColumnAboveCurrentCasesPer100k<len(threshold_days_list):       # If the last column doesnt contain data above our current cases per 100k, then all columns contain data below our current cases per 100k
+            aboveColumnRange=range(firstColumnAboveCurrentCasesPer100k,len(threshold_days_list))
+            above_threshold_list=[threshold_days_list[i][first_simulated_R_above_one:] for i in aboveColumnRange]
+            above_threshold_list.insert(0,threshold_days_list[0][first_simulated_R_above_one:])
+            above_threshold_headers=['<b> Assumed R value </b>']+[headers_threshold_bold[i] for i in aboveColumnRange]
+
+            fillColorList=create_fill_colors(above_threshold_list,rowEvenColor,rowOddColor)
+            
+            fig = go.Figure()
+
+            # Add traces
+            fig.add_trace(
+                go.Table(
+                header=dict(values=above_threshold_headers,
+                            fill_color=headerBGcolor,
+                            align='left',
+                            font=dict(color=headerFontColor, size=12)
+                            ),
+                cells=dict(values=above_threshold_list,
+                        fill_color=fillColorList,
+                        align='left'),
+                        visible=True
+                        )
+            )
+
+            fig.update_layout(
+                title=dict(
+                    text=f"<b> {country_name}: Dates when the cases per 100k rise <em> above </em> a threshold </b>",
+                    font=dict(
+                        size=titleFontSize,
+                        color=titleColor
+                    ),
+                    )
+            )
+
+            fig.write_html(f"plot_output/threshold_days_example_{country}_above.html")
 
         print("Finished plotting threshold data --- %s seconds ---" % (time.time() - start_time))
 
@@ -269,6 +349,13 @@ def process_data_and_create_plots(country='lv'):
         )
 
         fig.update_layout(
+            title=dict(
+                text=f"<b> Corona statistics based on simulated new (daily) cases with assumed R-Values for {country_name} </b>",
+                font=dict(
+                    size=titleFontSize,
+                    color=titleColor
+                ),
+                ),
             updatemenus=[
                 dict(
                     active=0,
@@ -289,9 +376,9 @@ def process_data_and_create_plots(country='lv'):
                             args=[{"visible":[False,False,True]}]
                         )
                     ]),
-                    x=1,
+                    x=0.97,
                     xanchor="right",
-                    y=1.2,
+                    y=1.07,
                     yanchor="top"
                 )
             ]
