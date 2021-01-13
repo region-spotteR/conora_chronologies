@@ -1,45 +1,5 @@
-from covid_utils import download_lv_covid_data,calculate_smoothened_values_pandaless, simulate_threshold_dates, simulate_new_cases_pandaless
-import time
-start_time = time.time()
+from process_data import process_data_and_create_plots
 
-# URL for latvia
-url='https://data.gov.lv/dati/eng/api/3/action/datastore_search_sql?sql=SELECT%20*%20from%20%22d499d2f0-b1ea-4ba2-9600-2c701b03bd4a%22'
-from_young_to_old_dates=True
-cases_dict,tests_dict=download_lv_covid_data(url,reversed_dates=from_young_to_old_dates)
+process_data_and_create_plots(country='de')
 
-print("Data loaded in --- %s seconds ---" % (time.time() - start_time))
-# Calculate smoothened data
-list_of_days=list(cases_dict.keys())
-smoothened_list, headers_smoothened=calculate_smoothened_values_pandaless(1907675,list(cases_dict.values()),list_of_days,
-                                                                            list_of_tests=list(tests_dict.values()),
-                                                                            reversed_dates=from_young_to_old_dates)
-
-## Select all 14 day calculations from smoothened_list
-headers_smoothened14 = list(filter(lambda x: x.find('7d')<0,headers_smoothened)) # Idea about x.find(): anything not containing the 7d calculations needs to be kept
-smoothened_list14 = [x for x, y in zip(smoothened_list, headers_smoothened) if y.find('7d')<0]
-
-## Select all 7 day calculations from smoothened_list
-headers_smoothened7 = list(filter(lambda x: x.find('14d')<0,headers_smoothened)) # Idea about x.find(): anything not containing the 14d calculations needs to be kept
-smoothened_list7 = [x for x, y in zip(smoothened_list, headers_smoothened) if y.find('14d')<0]
-
-print("Finished creating smoothened data --- %s seconds ---" % (time.time() - start_time))
-
-# Calculate simulated data
-
-## Calculate threshold days
-Range_for_R=[0.8,0.85,0.9,0.95,1.05,1.1,1.15,1.2]
-if from_young_to_old_dates:
-    new_cases_avg=smoothened_list[headers_smoothened.index('7d mean')][0]
-else:
-    mean7d=smoothened_list[headers_smoothened.index('7d mean')]
-    new_cases_avg=mean7d[len(mean7d)-1]
-population_lv=1907675
-
-threshold_days_list=simulate_threshold_dates(Range_for_R,new_cases_avg,population_lv)
-threshold_days_header=['R']+list(map(str,[10,20,50,100,200,400,600,800,1000]))
-
-## simulate new cases
-simulated_new_cases, simulated_casesPer100k_7d, simulated_casesPer100k_14d=simulate_new_cases_pandaless(Range_for_R,new_cases_avg,population_lv)
-simulated_cases_header=list(map(str,Range_for_R))
-
-print("Done! --- %s seconds ---" % (time.time() - start_time))
+process_data_and_create_plots(country='lv')
