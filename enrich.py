@@ -158,26 +158,124 @@ def rolling_sum(list_of_cases,interval=7,reversed_dates=True):
         logger.error(e)
 
 class simulate():
-    def __init__(self,new_cases_assumed,population,R_range=[0.8,0.85,0.9,0.95,1.05,1.1,1.15,1.2],thresholds=[10,20,50,100,200,400,600,800,1000]):
+    def __init__(self,new_cases_assumed,population,R_range=[0.8,0.85,0.9,0.95,1.05,1.1,1.15,1.2],thresholds=[10,20,50,100,200,400,600,800,1000],new_cases_assumed14=None):
         """ 
         Parameters
         ----------
         new_cases_assumed : int
-            The current number of new cases
+            The current number of new cases. It is recommended to use the current mean over 7 days, since that statistic is robust to statistical noise occuring over a week.
         population : int
             The population of a country
         R_range : list
             A list of floats representing the range of R
         thresholds : list
             A list of integers representing the threshold which R has to go above or below
+        new_cases_assumed14 : int
+            The current number of new cases over 14 days. It is optional, but recommendation is to provide this input. Otherwise accuracy might suffer
+        
         """
         self.input_new_cases_avg=new_cases_assumed
         self.input_population=population
-        self.input_range_for_r=R_range
+        self.input_range_for_r=sorted(R_range)
         self.input_thresholds=thresholds
+        self.input_new_cases_14d_avg=new_cases_assumed if new_cases_assumed14 is None else new_cases_assumed14
+        
+    def create_th_values(self):
+        """
+        Creates four lists. There is two types of lists: One where the simulated cases per 100k are below the 
+        current cases per 100k (usually using a below in the name). The other lists are created when simulated cases per 100k are 
+        *above* the current cases per 100k (usually using an above in the name). Since I use both 7 and 14 day calculations we end up
+        with four lists. 
+        
+        Returns
+        -------
+        object
+            An object containing relevant output. The lists start with `values`. The corresponding thresholds can be found in the list starting with `th_`
+        """
+        try:
+            current_cases100k_7d=((self.input_new_cases_avg*7)/self.input_population)*100000 # quite accurate
+            current_cases100k_14d=((self.input_new_cases_avg14*7)/self.input_population)*100000 # might be inaccurate if no 14d value was supplied
+            th_list=self.input_thresholds
+            th_above_current100k_7d=next((i for i in range(0,len(th_list)) if sorted(th_list)[i]>current_cases100k_7d),len(th_list))
+            th_above_current100k_14d=next((i for i in range(0,len(th_list)) if sorted(th_list)[i]>current_cases100k_14d),len(th_list))
+            
+            self.th_above7=sorted(th_list)[th_above_current100k_7d:]
+            self.th_above14=sorted(th_list)[th_above_current100k_14d:]
+            self.th_below7=sorted(th_list)[:th_above_current100k_7d]
+            self.th_below14=sorted(th_list)[:th_above_current100k_14d]
+            firstR_over1_i=next((i for i in range(0,len(R_range)) if sorted(R_range)[i]>1),len(R_range))
+            R_below=sorted(R_range)[:firstR_over1_i]
+            R_above=sorted(R_range)[firstR_over1_i:]
+            self.values7_above_th=self.get_th_list(self.th_above7,R_above,below=False) if len(R_above)>0 and len(self.th_above7)>0 else None
+            self.values14_above_th=self.get_th_list(self.th_above14,R_above,d7=False,below=False) if len(R_above)>0 and len(self.th_above14)>0 else None
+            self.values7_below_th=self.get_th_list(self.th_below7,R_below) if len(R_below)>0 and len( self.th_below7)>0 else None
+            self.values14_below_th=self.get_th_list(self.th_below14,R_below,d7=False)  if len(R_below)>0  and len( self.th_below14)>0 else None
+            # in_FC_cases_per100k_7d - dict
 
+        except Exception as e:
+            logger.error(e)
 
-    def simulate_new_cases(self,output_limit=91,window_length=1000,return_threshold_days=True):
+    def get_th_list(self,th_list,r_list,d7=True,below=True):
+        """
+        Calculates after how many days a threshold is reached. Can only be executed after simulate_new_cases
+        
+        Parameters
+        ----------
+        th_list : list
+            list of thresholds to verify. This list corresponds to d7 and below input
+        r_list : int
+            list of assumed R values. Either only R values above or below 1; corresponds thus to below
+        d7 : bool
+            Is the  a calculation over 7 or 14 days?
+        below : bool
+            Is the threshold below or above the current cases per 100k?
+
+        Returns
+        -------
+        int
+            An index indicating the number of days until the threshold is reached
+        """
+        try:
+            FC_dict=self.in_FC_cases_per100k_7d if d7 else self.in_FC_cases_per100k_14d
+            res=[r_list]
+            for th in th_list:
+                res.append([self.get_th_days(FC_dict[R_s],th,d7,below) for R_s in r_list])
+            return res
+            
+        except Exception as e:
+            logger.error(e)
+    
+    def get_th_days(fc_list,th,d7,below):
+        """
+        Calculates after how many days a threshold is reached
+        
+        Parameters
+        ----------
+        fc_list : list
+            the simulated cases per 100k
+        th : int
+            The threshold to look for
+        d7 : bool
+            Is the fc_list a calculation over 7 or 14 days?
+        below : bool
+            Is the threshold below or above the current cases per 100k?
+
+        Returns
+        -------
+        int
+            An index indicating the number of days until the threshold is reached
+        """
+        try:
+            interval=7 if d7 else 14
+            if below:
+                return next((x[0] for x in enumerate(fc_list) if x[1] < th),None)+interval
+            else:
+                return next((x[0] for x in enumerate(fc_list) if x[1] > th),None)+interval
+
+        except Exception as e:
+            logger.error(e)
+
+    def simulate_new_cases(self,output_limit=91,window_length=1000,return_threshold_days=True): #new
         """
         Simulates daily new cases (in general and per 100k) according to a specified range of R; adds Date column
         
@@ -200,50 +298,47 @@ class simulate():
             A list of the cases per 100k KPI for 14 days based on a range of assumed effective R-values
         """
         try:
+            # use
+            current_cases100k_7d=((self.input_new_cases_avg*7)/self.input_population)*100000 # quite accurate
+            current_cases100k_14d=((self.input_new_cases_avg*14)/self.input_population)*100000 # too inaccurate - find better approximation
             # create range of dates and insert it at the beginning of the list
             base = datetime.today()
             date_list = [(base + timedelta(days=x)).date().isoformat() for x in range(window_length)]
 
-            new_cases_list=[date_list]
-            casesPer100k_7d_list=[date_list]
-            casesPer100k_14d_list=[date_list]
+            self.cases_new=[date_list]
+            self.casesPer100k_7d=[date_list]
+            self.casesPer100k_14d=[date_list]
             cases_per100k_7d_dict={}
             cases_per100k_14d_dict={}
-            for R_s in self.input_range_for_r:
+            for R_s in sorted(self.input_range_for_r):
                 step_value=(R_s-1)/7
                 new_cases=np.arange(start=1,stop=1+(step_value*window_length),step=step_value)*self.input_new_cases_avg
                 New_Cases_7_Day_Sum=rolling_sum(new_cases,interval=7,reversed_dates=False)
                 New_Cases_14_Day_Sum=rolling_sum(new_cases,interval=14,reversed_dates=False)
-                FC_cases_per100k_7d=list(map(lambda x: round((x/self.input_population)*100000,2) if x is not None else None,New_Cases_7_Day_Sum))
-                FC_cases_per100k_14d=list(map(lambda x: round((x/self.input_population)*100000,2) if x is not None else None,New_Cases_14_Day_Sum))
-
-                # assign to dict for verify threshold function
-                cases_per100k_7d_dict[R_s]=FC_cases_per100k_7d
-                cases_per100k_14d_dict[R_s]=FC_cases_per100k_14d
+                self.in_FC_cases_per100k_7d[R_s]=list(map(lambda x: round((x/self.input_population)*100000,2) if x is not None else None,New_Cases_7_Day_Sum))
+                self.in_FC_cases_per100k_14d[R_s]=list(map(lambda x: round((x/self.input_population)*100000,2) if x is not None else None,New_Cases_14_Day_Sum))
                                         
-
                 # append cases for simulated
-                new_cases_list.append(list(np.round(new_cases,2)))
-                casesPer100k_7d_list.append(FC_cases_per100k_7d)
-                casesPer100k_14d_list.append(FC_cases_per100k_14d)
+                self.cases_new.append(list(np.round(new_cases,2)))
+                self.casesPer100k_7d.append(FC_cases_per100k_7d)
+                self.casesPer100k_14d.append(FC_cases_per100k_14d)
 
-            self.new_cases=new_cases_list
-            self.casesPer100k_7d=casesPer100k_7d_list
-            self.casesPer100k_14d=casesPer100k_14d_list
 
             # calculates after how many days under an assumed R_0 a threshold is reached.
             if return_threshold_days:
                 self.threshold_days7=[self.input_range_for_r]
                 self.threshold_days14=[self.input_range_for_r]
             
-                for th in self.input_thresholds:                       
-                    threshold_days_list7=[self.verify_threshold(cases_per100k_7d_dict[R_s],th,interval=7) for R_s in self.input_range_for_r]
+                for th in self.input_thresholds:                    
+                    threshold_days_list7=[self.verify_threshold(self.in_FC_cases_per100k_7d[R_s],th,interval=7) for R_s in self.input_range_for_r]
                     self.threshold_days7.append(threshold_days_list7)
-                    threshold_days_list14=[self.verify_threshold(cases_per100k_14d_dict[R_s],th,interval=14) for R_s in self.input_range_for_r]
+                    threshold_days_list14=[self.verify_threshold(self.in_FC_cases_per100k_14d[R_s],th,interval=14) for R_s in self.input_range_for_r]
                     self.threshold_days14.append(threshold_days_list14)
 
         except Exception as e:
             logger.error(e)
+
+
 
 
     def verify_threshold(self, simulated_cases_per100k,threshold,interval=7,returnDates=False):
