@@ -31,12 +31,17 @@ class data:
 
             if from_young_to_old_dates:
                 new_cases_avg=self.smooth.data[self.smooth.headers.index('7d mean')][0]
+                new_cases_14d_avg=new_cases_avg=self.smooth.data[self.smooth.headers.index('14d mean')][0]
             else:
                 mean7d=self.smooth.data[self.smooth.headers.index('7d mean')]
+                mean14d=self.smooth.data[self.smooth.headers.index('14d mean')]
                 new_cases_avg=mean7d[len(mean7d)-1]
+                new_cases_14d_avg=mean14d[len(mean14d)-1]
 
-            self.simulated=simulate(new_cases_avg,self.attr.population)
+
+            self.simulated=simulate(new_cases_avg,self.attr.population,new_cases_assumed14=new_cases_14d_avg)
             self.simulated.simulate_new_cases()
+            self.simulated.create_th_values()
             logger.info("Done preprocessing data - starting to save the plots --- %s seconds ---" % (time.time() - start_time))
             self.attr.color_scheme().headerBGcolor
 

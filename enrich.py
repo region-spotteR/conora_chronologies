@@ -178,7 +178,7 @@ class simulate():
         self.input_population=population
         self.input_range_for_r=sorted(R_range)
         self.input_thresholds=thresholds
-        self.input_new_cases_14d_avg=new_cases_assumed if new_cases_assumed14 is None else new_cases_assumed14
+        self.input_new_cases_avg14=new_cases_assumed if new_cases_assumed14 is None else new_cases_assumed14
         
     def create_th_values(self):
         """
@@ -193,19 +193,26 @@ class simulate():
             An object containing relevant output. The lists start with `values`. The corresponding thresholds can be found in the list starting with `th_`
         """
         try:
+            # Step 1: Calculate the index where a threshold is above the current cases per 100k - do it for both 7 and 14 days
             current_cases100k_7d=((self.input_new_cases_avg*7)/self.input_population)*100000 # quite accurate
             current_cases100k_14d=((self.input_new_cases_avg14*7)/self.input_population)*100000 # might be inaccurate if no 14d value was supplied
             th_list=self.input_thresholds
             th_above_current100k_7d=next((i for i in range(0,len(th_list)) if sorted(th_list)[i]>current_cases100k_7d),len(th_list))
             th_above_current100k_14d=next((i for i in range(0,len(th_list)) if sorted(th_list)[i]>current_cases100k_14d),len(th_list))
             
+            # Step 2: Use this index to create below and above threshold lists for both 7 and 14 day calculations
             self.th_above7=sorted(th_list)[th_above_current100k_7d:]
             self.th_above14=sorted(th_list)[th_above_current100k_14d:]
             self.th_below7=sorted(th_list)[:th_above_current100k_7d]
             self.th_below14=sorted(th_list)[:th_above_current100k_14d]
+
+            # Step 3: Create two lists one with R values above 1 and another with R values below 1
+            R_range=self.input_range_for_r
             firstR_over1_i=next((i for i in range(0,len(R_range)) if sorted(R_range)[i]>1),len(R_range))
-            R_below=sorted(R_range)[:firstR_over1_i]
-            R_above=sorted(R_range)[firstR_over1_i:]
+            R_below=sorted(R_range)[:firstR_over1_i]        # contains only R values below 1
+            R_above=sorted(R_range)[firstR_over1_i:]        # contains only R values above 1
+            
+            # Step 4: Use Steps 3  and  2 to create value lists for all 4 possible cases
             self.values7_above_th=self.get_th_list(self.th_above7,R_above,below=False) if len(R_above)>0 and len(self.th_above7)>0 else None
             self.values14_above_th=self.get_th_list(self.th_above14,R_above,d7=False,below=False) if len(R_above)>0 and len(self.th_above14)>0 else None
             self.values7_below_th=self.get_th_list(self.th_below7,R_below) if len(R_below)>0 and len( self.th_below7)>0 else None
@@ -245,7 +252,7 @@ class simulate():
         except Exception as e:
             logger.error(e)
     
-    def get_th_days(fc_list,th,d7,below):
+    def get_th_days(self,fc_list,th,d7,below):
         """
         Calculates after how many days a threshold is reached
         
@@ -267,10 +274,11 @@ class simulate():
         """
         try:
             interval=7 if d7 else 14
+            fc=fc_list[interval:]
             if below:
-                return next((x[0] for x in enumerate(fc_list) if x[1] < th),None)+interval
+                return next((x[0] for x in enumerate(fc) if x[1] < th),None)+interval
             else:
-                return next((x[0] for x in enumerate(fc_list) if x[1] > th),None)+interval
+                return next((x[0] for x in enumerate(fc) if x[1] > th),None)+interval
 
         except Exception as e:
             logger.error(e)
@@ -298,9 +306,6 @@ class simulate():
             A list of the cases per 100k KPI for 14 days based on a range of assumed effective R-values
         """
         try:
-            # use
-            current_cases100k_7d=((self.input_new_cases_avg*7)/self.input_population)*100000 # quite accurate
-            current_cases100k_14d=((self.input_new_cases_avg*14)/self.input_population)*100000 # too inaccurate - find better approximation
             # create range of dates and insert it at the beginning of the list
             base = datetime.today()
             date_list = [(base + timedelta(days=x)).date().isoformat() for x in range(window_length)]
@@ -308,8 +313,8 @@ class simulate():
             self.cases_new=[date_list]
             self.casesPer100k_7d=[date_list]
             self.casesPer100k_14d=[date_list]
-            cases_per100k_7d_dict={}
-            cases_per100k_14d_dict={}
+            self.in_FC_cases_per100k_7d={}
+            self.in_FC_cases_per100k_14d={}
             for R_s in sorted(self.input_range_for_r):
                 step_value=(R_s-1)/7
                 new_cases=np.arange(start=1,stop=1+(step_value*window_length),step=step_value)*self.input_new_cases_avg
@@ -320,8 +325,8 @@ class simulate():
                                         
                 # append cases for simulated
                 self.cases_new.append(list(np.round(new_cases,2)))
-                self.casesPer100k_7d.append(FC_cases_per100k_7d)
-                self.casesPer100k_14d.append(FC_cases_per100k_14d)
+                self.casesPer100k_7d.append(self.in_FC_cases_per100k_7d[R_s])
+                self.casesPer100k_14d.append(self.in_FC_cases_per100k_14d[R_s])
 
 
             # calculates after how many days under an assumed R_0 a threshold is reached.
