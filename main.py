@@ -1,7 +1,7 @@
-from test_prepare import data
-from test_plot import plots
+from prepare import data
+from plot import plots
 
-country='de'
+country='lv'
 # variation A
 # data=data(country)
 # data.load(data.attr.url,country)

@@ -1,6 +1,6 @@
-from test_country_settings import get_attributes
-from test_load_data import download_covid_data
-from test_enrich import smoothened, simulate
+from country_settings import get_attributes
+from load_data import download_covid_data
+from enrich import smoothened, simulate
 
 import sys
 from loguru import logger
