@@ -43,7 +43,7 @@ class data:
             self.simulated.simulate_new_cases()
             self.simulated.create_th_values()
             logger.info("Done preprocessing data - starting to save the plots --- %s seconds ---" % (time.time() - start_time))
-            self.attr.color_scheme().headerBGcolor
+            #self.attr.color_scheme().headerBGcolor
 
         except Exception as e:
             logger.error(e)

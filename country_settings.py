@@ -6,19 +6,18 @@ class attributes_lv:
         self.url_contains_tests=True
         self.CasesPer100k_thresholds=threshold_list
         self.Range_for_R=range_for_r
-    
-    class color_scheme:
-        def __init__(self):
-            self.rowEvenColor = '#F3EED9'#'#FFE3F1'#'#FFAFAE'
-            self.rowOddColor = 'white'
-            self.headerBGcolor='#9E3039'
-            self.headerFontSize = 14
-            self.headerFontColor='white'
-            self.cellFontColor = 'black'
-            self.cellFontSize = 12
-            self.titleColor = '#9E3039'
-            self.titleFontSize = 27
-            self.PivotColumnTextColor=self.headerBGcolor
+        self.color_sizes=dict(
+            colorEvenRows = '#F3EED9',       #'#FFE3F1'#'#FFAFAE'
+            colorOddRows = 'white',
+            colorHeaderBG='#9E3039',
+            sizeHeaderFont = 14,
+            colorHeaderFont='white',
+            colorCellFont = 'black',
+            sizeCellFont = 12,
+            colorTitle = '#9E3039',
+            sizeTitleFont = 27,
+            colorPivotColumnText='#9E3039'
+        )
 
 class attributes_de:
     def __init__(self,threshold_list,range_for_r):
@@ -28,19 +27,18 @@ class attributes_de:
         self.url_contains_tests=False
         self.CasesPer100k_thresholds=threshold_list
         self.Range_for_R=range_for_r
-    
-    class color_scheme:
-        def __init__(self):
-            self.rowEvenColor = '#FFE6D9'
-            self.rowOddColor = 'white'
-            self.headerBGcolor= '#FFCE00' 
-            self.headerFontSize = 14                
-            self.headerFontColor='black'
-            self.cellFontColor = 'black'
-            self.cellFontSize = 12
-            self.titleColor = 'black'
-            self.titleFontSize = 27
-            self.PivotColumnTextColor='#DD0000'
+        self.color_sizes = dict(
+            colorEvenRows = '#FFE6D9',
+            colorOddRows = 'white',
+            colorHeaderBG= '#FFCE00',
+            sizeHeaderFont = 14,
+            colorHeaderFont='black',
+            colorCellFont = 'black',
+            sizeCellFont = 12,
+            colorTitle = 'black',
+            sizeTitleFont = 27,
+            colorPivotColumnText='#DD0000'
+        )
 
 def get_attributes(country,threshold_list=[10,20,50,100,200,400,600,800,1000],range_for_r=[0.8,0.85,0.9,0.95,1.05,1.1,1.15,1.2]):
     """
