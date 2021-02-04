@@ -276,9 +276,9 @@ class simulate():
             interval=7 if d7 else 14
             fc=fc_list[interval:]
             if below:
-                return next((x[0] for x in enumerate(fc) if x[1] < th),None)+interval
+                return next((x[0]+interval for x in enumerate(fc) if x[1] < th),None)
             else:
-                return next((x[0] for x in enumerate(fc) if x[1] > th),None)+interval
+                return next((x[0]+interval for x in enumerate(fc) if x[1] > th),None)
 
         except Exception as e:
             logger.error(e)
