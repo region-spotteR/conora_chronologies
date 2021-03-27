@@ -2,6 +2,7 @@ from loguru import logger
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import time
+from datetime import date, timedelta
 
 class dictItemsToSelf:
     def __init__(self, dictionary):
@@ -92,7 +93,7 @@ class plots():
             self.add_table(attr.headers7,smooth_obj.data7,self.colorCellFont,h_fill_color,h_font_color,visibility=True)
             self.add_table(attr.headers14,smooth_obj.data14, self.colorCellFont,h_fill_color,h_font_color)
             self.add_table(attr.headers,smooth_obj.data,self.colorCellFont,h_fill_color,h_font_color)
-            smooth_dropdowns = add_update_menus(attr.dropdown1,attr.dropdown2,attr.dropdown3)
+            smooth_dropdowns = add_update_menus(attr.dropdown1,attr.dropdown2,option3_dict=attr.dropdown3)
             self.update_layout(smooth_dropdowns,f"<b> Corona statistics for {self.country_name} </b>")
             self.fig.write_html(f'plot_output/smoothened_example_{country}.html',full_html=full_html)
             #logger.info("Finished plotting smoothened data --- %s seconds ---" % (time.time() - start_time))            
@@ -115,23 +116,43 @@ class plots():
         try:
             attr = self.threshold(th_obj,self.color_sizes_dict)
             self.fig = attr.create_figure(self.country_name)
+            self.add_threshold_table(attr,th_obj.values7_below_th,th_obj.th_below7,th_dates=True)
             self.add_threshold_table(attr,th_obj.values7_below_th,th_obj.th_below7)
+            self.add_threshold_table(attr,th_obj.values14_below_th,th_obj.th_below14,th_dates=True)
             self.add_threshold_table(attr,th_obj.values14_below_th,th_obj.th_below14)
+            self.add_threshold_table(attr,th_obj.values7_above_th,th_obj.th_above7,below=False,th_dates=True)
             self.add_threshold_table(attr,th_obj.values7_above_th,th_obj.th_above7,below=False)
+            self.add_threshold_table(attr,th_obj.values14_above_th,th_obj.th_above14,below=False,th_dates=True)
             self.add_threshold_table(attr,th_obj.values14_above_th,th_obj.th_above14,below=False)
 
             attr.create_dropdown(self.country_name)
+            attr.create_buttons(attr.dropdown1,attr.dropdown2)
             threshold_dropdowns = add_update_menus(attr.dropdown1,attr.dropdown2)
+            threshold_dropdowns.append(add_update_menus(attr.button1,attr.button2,type_input='buttons',right=False)[0])
+            annotations=list(self.fig['layout']['annotations'])
+            annotations.append(
+                dict(text="Unit:", showarrow=False,
+                             x=0, y=1.06, yref="paper", align="left",font=dict(
+                                 size=14,
+                                color='black'
+                             ))
+            )
+            self.fig['layout']['annotations']=tuple(annotations)
+
+
             self.update_layout(threshold_dropdowns,attr.titleText)
-            
             self.fig.write_html(f"plot_output/threshold_days_example2_{country}.html",validate=False,full_html=full_html)
         
         except Exception as e:
             logger.error(e)
 
-    def add_threshold_table(self,th_class,cell_list,th_header,below=True):
+    def add_threshold_table(self,th_class,cell_list,th_header,below=True,th_dates=False):
         try:
             if cell_list is not None:
+                if th_dates:
+                    cell_list_days=th_class.get_th_date_list(cell_list)
+                    cell_list=cell_list_days
+
                 row_number = 2 if th_class.table_count > 2 else 1
                 if below:
                     row_number=1
@@ -171,7 +192,7 @@ class plots():
                                             )
                         subplot_title['xanchor']='left'
                         subplot_title['x']=0
-                        subplot_title['y']=subplot_title['y']+0.04
+                        subplot_title['y']=subplot_title['y']+0.07
                     
                     return fig
 
@@ -223,10 +244,47 @@ class plots():
                           
             except Exception as  e:
                 logger.error(e)
+        
+        def create_buttons(self,dropdown1,dropdown2):
+            try: 
+                self.button1={'label': 'dates','visibility':[True,False]*len(dropdown1.get('visibility'))}
+                self.button2={'label': 'days','visibility':[False,True]*len(dropdown1.get('visibility'))}
+                self.dropdown1['visibility']=[item for item in dropdown1.get('visibility') for i in range(2)]
+                self.dropdown2['visibility']=[item for item in dropdown2.get('visibility') for i in range(2)]
+                
+            except Exception as e:
+                logger.error(e)
+
+        def get_threshold_dates(self,days):
+            try:    
+                th_date=date.today()+timedelta(days)
+                return th_date.isoformat()
+            except Exception as e:
+                logger.error(e)
+
+        def get_th_date_list(self,th_list):
+            try:
+                result=[[self.get_threshold_dates(day_int) for day_int in th_list[i]] for i in range(1,len(th_list))]
+                result.insert(0,th_list[0])
+                return result
+            except Exception as e:
+                logger.error(e)
 
 
-def add_update_menus(option1_dict,option2_dict,option3_dict=None):
+
+def add_update_menus(option1_dict,option2_dict,type_input='dropdown',right=True,option3_dict=None):
     try:
+        if right:
+            x_input=1
+            xanchor_input="right"
+            direction_input="down"
+            y_input=1.07
+        else:
+            direction_input="left"
+            x_input=0.05
+            xanchor_input="left"
+            y_input=1.07
+
         custom_buttons=list([
             dict(
                 label=str(option1_dict['label']),
@@ -250,11 +308,13 @@ def add_update_menus(option1_dict,option2_dict,option3_dict=None):
 
         menu = [
             dict(
+                type=type_input,
                 active=0,
+                direction=direction_input,
                 buttons=custom_buttons,
-                x=1,
-                xanchor="right",
-                y=1.07,
+                x=x_input,
+                xanchor=xanchor_input,
+                y=y_input,
                 yanchor="top"
             )
         ]
