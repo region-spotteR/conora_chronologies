@@ -21,6 +21,8 @@ Load the dependent packages using
 pip install requirements.txt
 ```
 
+In addition you need to create a folder called `download_cache`. I use this folder to cache the first API call I make each day.
+
 # Usage
 
 ## Running the code

@@ -62,6 +62,7 @@ def main():
 
     ## 1.3. Create tables
     # 1.3.1 Create historical table
+    historical_table.compile_css(attr.color_sizes,country)
     history_dict_list=historical_table.create_dicts(historical_data)
     history_columns=historical_table.create_history_columns(historical_data.headers7)
     historical_table.write_tabulator(history_dict_list,history_columns,country)
