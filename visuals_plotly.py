@@ -9,65 +9,59 @@ import plotly.graph_objects as go
 
 class dictItemsToSelf:
     def __init__(self, dictionary):
+        """
+        Useful utility class to pass on attributes of a dictionary to a class object
+        """
         for k, v in dictionary.items():
             setattr(self, k, v)             # same as self.k=v
 
-class plots():
+class visuals():
     def __init__(self,country_attributes):
+        """
+        All color and sizing parameters are passed on using the dictItemsToSelf-class. 
+        In addition the country name is extracted from the country attributes
+        """
         dictItemsToSelf.__init__(self,country_attributes.color_sizes)
-        # self.colors_sizes=country_attributes.color_sizes() # wrong
         self.country_name = country_attributes.country_name
-        self.color_sizes_dict = country_attributes.color_sizes
-        # self.rowEvenColor = self.colors_sizes.rowEvenColor
-        # self.rowOddColor = self.colors_sizes.rowOddColor
+        self.color_sizes_dict = country_attributes.color_sizes # needed for the threshold class
 
-    def plot_timeline(self,smooth_obj,country,full_html=True):
-        try:
-            self.headers = smooth_obj.headers
-            date_list=[datetime.strptime(x, "%Y-%m-%d").date() for x in smooth_obj.data[0]]
-            fig = make_subplots(rows=2, cols=1,
-                        specs=[[{"type": "scatter"}], [{"type": "table"}]]
-                    )
+    def add_table(self,header_list,cells_list,cell_font_color,header_fill_color,header_font_color,visibility=False,cell_fill_color=None,**kwargs):
+        """
+        A generic function to append tables to a plotly Figure-object. 
 
-            for i in range(1,len(smooth_obj.headers)):
-                fig.add_trace(go.Scatter(x=date_list, y=smooth_obj.data[i],
-                                name=smooth_obj.headers[i]),row=1,col=1)
-                # fig.add_trace(go.Scatter(x=date_list, y=smooth_obj.data[i],
-                #                 name=smooth_obj.headers[i]),row=2,col=1)
-
-            fig.update_xaxes(
-                rangeslider_visible=True,
-                rangeselector=dict(
-                    buttons=list([
-                        dict(count=1, label="1m", step="month", stepmode="backward"),
-                        dict(count=6, label="6m", step="month", stepmode="backward"),
-                        dict(count=1, label="YTD", step="year", stepmode="todate"),
-                        dict(count=1, label="1y", step="year", stepmode="backward"),
-                        dict(step="all")
-                    ])
-                )
-            )
-
-            fig.update_layout(yaxis=dict(type='log'))
-            fig.write_html(f'plot_output/smooth_timeline_{country}.html',full_html=full_html)
-
-        except Exception as e:
-            logger.error(str(e))
-
-    def add_table(self,header_dict,cells_dict,cell_font_color,header_fill_color,header_font_color,visibility=False,cell_fill_color=None,**kwargs):
+        Parameters
+        ----------
+        
+        header_list : list
+            A list containing the column_headers
+        cell_list : list 
+            A list of lists containing the cell values
+        cell_font_color : list
+            A list of lists containing the cell font color
+        header_fill_color : list
+            A list containing the background color for each column
+        header_font_color : list
+            A list containing the font color for each column
+        visibility : bool
+            Optional. Defaults to False. Should this plot be visible
+        cell_fill_color : list
+            Optional. Defaults to None. A list of lists with cell background colors for each rows
+        **kwargs
+            further arguments for go.Table
+        """
         try:
             if cell_fill_color is None:
-                cell_fill_color = self.create_fill_colors(cells_dict)
+                cell_fill_color = self.create_fill_colors(cells_list)
             # Add traces
             self.fig.add_trace(
                 go.Table(
-                header=dict(values=header_dict,
+                header=dict(values=header_list,
                             fill_color=header_fill_color,
                             align='left',
                             line_color=self.colorCellFont,#+['white' for i in range(1,len(below_threshold_headers))],
                             font=dict(color=header_font_color, size=self.sizeHeaderFont)
                             ),
-                cells=dict(values=cells_dict,
+                cells=dict(values=cells_list,
                         fill_color=cell_fill_color,
                         font=dict(color=cell_font_color,size=self.sizeCellFont),
                         align='left'),
@@ -80,6 +74,19 @@ class plots():
             logger.error(e)
 
     def create_fill_colors(self,nested_list):
+        """
+        Creates a list of background colors for each row. Colors are passed through from the country_settings.py
+
+        Parameters
+        ----------
+        nested_list: list
+            A list of lists containing the threshold values
+
+        Returns
+        -------
+        list : list
+            A list of lists containing background colors for each row
+        """
         try:
             row_length=len(nested_list[0])
             col_length=len(nested_list)
@@ -96,6 +103,16 @@ class plots():
 
 
     def update_layout(self,menus,title_text=None):
+        """
+        Adds plot title and menus to the Figure-object. Colors are passed through from the country_settings.py
+
+        Parameters
+        ----------
+        menus: list
+            A list of dropdown or buttons menus 
+        title_text: str
+            Optional. Default is None. A string containing some title text
+        """
         try:
             if title_text is None:
                 title_dict = None
@@ -110,48 +127,30 @@ class plots():
         except Exception as e:
             logger.error(e)
 
-    def add_threshold_table(self,cell_list,header_list,below=True,dates=True):
-        try:
-            if cell_list is not None:
-                th_flow='New Cases per 100k < ' if below else 'New Cases per 100k > '
-                headers_l=['<b> Assumed R value </b>']+[f"<b>{th_flow} {str(th)} </b>" for th in header_list]
-
-        except Exception as e:
-            logger.error(e)
 
 
-    def plot_smoothened(self,smooth_obj,country,full_html=True):
-        try:
-            attr=self.smoothened(smooth_obj)
-            self.fig=attr.fig
-            h_fill_color=self.colorHeaderBG
-            h_font_color=self.colorHeaderFont
-            self.add_table(attr.headers7,smooth_obj.data7,self.colorCellFont,h_fill_color,h_font_color,visibility=True)
-            self.add_table(attr.headers14,smooth_obj.data14, self.colorCellFont,h_fill_color,h_font_color)
-            self.add_table(attr.headers,smooth_obj.data,self.colorCellFont,h_fill_color,h_font_color)
-            smooth_dropdowns = add_update_menus(attr.dropdown1,attr.dropdown2,option3_dict=attr.dropdown3)
-            self.update_layout(smooth_dropdowns,f"<b> Corona statistics for {self.country_name} </b>")
-            self.fig.write_html(f'plot_output/smoothened_example_{country}.html',full_html=full_html)
-            #logger.info("Finished plotting smoothened data --- %s seconds ---" % (time.time() - start_time))            
-
-        except Exception as e:
-            logger.error(e)
-
-        
-    class smoothened():
-        def __init__(self,data_obj):
-            self.fig = go.Figure()
-            self.headers7 = [f'<b>{x} </b>' for x in data_obj.headers7]
-            self.headers14 = [f'<b>{x} </b>' for x in data_obj.headers14]
-            self.headers = [f'<b>{x} </b>' for x in data_obj.headers]
-            self.dropdown1 = {'label':'7 day Calculations','visibility': [True,False,False]}
-            self.dropdown2 = {'label':'14 day Calculations','visibility': [False,True,False]}
-            self.dropdown3 = {'label':'All Calculations','visibility': [False,False,True]}
     
-    def plot_threshold(self,th_obj,country,full_html=True):
+    def plot_threshold(self,th_obj,country,full_html=True,only_below=True):
+        """
+        Creates a set of threshold tables and appends them to a plotly Figure object. Writes the output as a file
+
+        Parameters
+        ----------
+        th_obj : simulate
+            simulate-class object from transform_enrich.py. This object contains all simulations and the threshold day calculation
+        country : str
+            A string countaing a two digit country code
+        full_html : bool
+            Optional. Defaults to True. This boolean tells plotly if a full hmtl or just a div-object should be returned
+        only_below: bool
+            Optional. Defaults to true. Only values below the threshold are plotted. Turns of the confusing subplots
+        """
         try:
+            if only_below:
+                th_obj.values14_above_th=None
+                th_obj.values7_above_th=None
             attr = self.threshold(th_obj,self.color_sizes_dict)
-            self.fig = attr.create_figure(self.country_name)
+            self.fig = attr.create_figure_and_title(self.country_name)
             self.add_threshold_table(attr,th_obj.values7_below_th,th_obj.th_below7,th_dates=True)
             self.add_threshold_table(attr,th_obj.values7_below_th,th_obj.th_below7)
             self.add_threshold_table(attr,th_obj.values14_below_th,th_obj.th_below14,th_dates=True)
@@ -161,7 +160,7 @@ class plots():
             self.add_threshold_table(attr,th_obj.values14_above_th,th_obj.th_above14,below=False,th_dates=True)
             self.add_threshold_table(attr,th_obj.values14_above_th,th_obj.th_above14,below=False)
 
-            attr.create_dropdown(self.country_name)
+            attr.create_dropdown()
             attr.create_buttons(attr.dropdown1,attr.dropdown2)
             threshold_dropdowns = add_update_menus(attr.dropdown1,attr.dropdown2)
             threshold_dropdowns.append(add_update_menus(attr.button1,attr.button2,type_input='buttons',right=False)[0])
@@ -183,6 +182,22 @@ class plots():
             logger.error(e)
 
     def add_threshold_table(self,th_class,cell_list,th_header,below=True,th_dates=False):
+        """
+        Adds a threshold table to the Figure-Object. 
+
+        Parameters
+        ----------
+        th_class : threshold
+            threshold-class object
+        cell_list : list 
+            A list of lists containing the cell values
+        th_header : list
+            A list containing the column_headers
+        below: bool
+            Defaults to true. The boolean indicates if cell_list contains values below the threshold or above. Only important for plotly subplots            
+        th_dates: bool
+            Defaults to False. A boolean indicating if the values in cell_list should be transformed in to dates
+        """
         try:
             if cell_list is not None:
                 if th_dates:
@@ -194,9 +209,12 @@ class plots():
                     row_number=1
                 h_fill_color=['white'] + ([self.colorHeaderBG]*len(th_header))
                 h_font_color=[self.colorPivotColumnText]+([self.colorHeaderFont]*len(th_header))
-                header=th_class.create_header(th_header,below)
+                header=th_class.create_column_header(th_header,below)
                 cell_font_color=th_class.create_cell_font_color(cell_list)
-                self.add_table(header,cell_list,cell_font_color,h_fill_color,h_font_color,row=row_number,col=1)
+                if th_class.table_count > 2:
+                    self.add_table(header,cell_list,cell_font_color,h_fill_color,h_font_color,row=row_number,col=1)
+                else:
+                    self.add_table(header,cell_list,cell_font_color,h_fill_color,h_font_color)
 
         except Exception as e:
             logger.error(e)
@@ -204,15 +222,32 @@ class plots():
 
     class threshold(dictItemsToSelf):
         def __init__(self,data_obj,color_sizes_dict):
+            """
+            All color and sizing parameters are passed on using the dictItemsToSelf-class. 
+            In addition booleans are created to indicate to class methods if objects exist. 
+            """
             dictItemsToSelf.__init__(self,color_sizes_dict)
             self.bool7_below_th=(data_obj.values7_below_th is not None)
             self.bool14_below_th=(data_obj.values14_below_th is not None)
             self.bool7_above_th=(data_obj.values7_above_th is not None)
             self.bool14_above_th=(data_obj.values14_above_th is not None)
             self.table_count = sum([self.bool7_below_th,self.bool14_below_th,self.bool7_above_th,self.bool14_above_th])
-            self.titleText=None
+            self.titleText=None # This has a default value of None since for subplots plotly is creating the title inside the figure creation
 
-        def create_figure(self,country_name):
+        def create_figure_and_title(self,country_name):
+            """
+            Starts the plotting process through creation of the Figure container. Also creates titles. Colors are passed through from the country_settings.py
+
+            Parameters
+            ----------
+            country_name : str
+                Country name as a string
+
+            Returns
+            -------
+            Figure: Figure
+                A plotly Figure object containing the title
+            """
             try:
                 if self.table_count>2:
                     fig = make_subplots(rows=2, cols=1,
@@ -233,12 +268,30 @@ class plots():
                     return fig
 
                 else:
+                    below=f"<b> {country_name}: Dates when the new cases per 100k fall <em> below </em> a threshold </b>"
+                    above=f"<b> {country_name}: Dates when the new cases per 100k rise <em> above </em> a threshold </b>"
+                    self.titleText = below if self.bool7_below_th else above  
                     return go.Figure()
 
             except Exception as e:
                 logger.error(e)
                 
-        def create_header(self,th_list,below=True):
+        def create_column_header(self,th_list,below=True):
+            """
+            Create a list of column headers for the threshold table
+
+            Parameters
+            ----------
+            th_list : list
+                A list containing the used threshold values
+            below : bool
+                Optional. Default is True. A boolean indicating if the thresholds are below the current Covid incidence (Cases per 100k) or above 
+
+            Returns
+            -------
+            list: list
+                A list of header strings for the table
+            """
             try:
                 header1=['<b> Assumed R value </b>']
                 comp_text= 'New Cases per 100k < ' if below else 'New Cases per 100k > '
@@ -249,6 +302,19 @@ class plots():
                 logger.error(e)
         
         def create_cell_font_color(self,nested_list):
+            """
+            Creates a list of lists containing the colors for each column item. Colors are passed through from the country_settings.py
+
+            Parameters
+            ----------
+            nested_list : list
+                A list of lists containing the table values
+
+            Returns
+            -------
+            list: list
+                A list of lists containing the cell colors
+            """
             try:
                 normalCellFontColor=[self.colorCellFont]*len(nested_list[0])
                 return [[self.colorPivotColumnText]*len(nested_list[0])] + [normalCellFontColor]*(len(nested_list)-1)
@@ -256,7 +322,10 @@ class plots():
             except Exception as e:
                 logger.error(e)
 
-        def create_dropdown(self,country_name):
+        def create_dropdown(self):
+            """
+            Creates a dictionary for dropdowns with label attribute and visibility list. All out output is written to the threshold class
+            """
             try:
                 if self.table_count==4:
                     self.dropdown1 = {'label':'7 day Calculations','visibility': [True,False,True,False]}
@@ -272,16 +341,23 @@ class plots():
                     self.dropdown2 = {'label':'14 day Calculations','visibility': [False,True,False]}
                     # If there is no above threshold for 7 days then there is also no above threshold table for the 14 days -> else
                 else:
-                    below=f"<b> {country_name}: Dates when the new cases per 100k fall <em> below </em> a threshold </b>"
-                    above=f"<b> {country_name}: Dates when the new cases per 100k rise <em> above </em> a threshold </b>"
                     self.dropdown1 = {'label':'7 day Calculations','visibility': [True,False]}
-                    self.dropdown2 = {'label':'14 day Calculations','visibility': [False,True]}
-                    self.titleText = below if self.bool7_below_th else above            
+                    self.dropdown2 = {'label':'14 day Calculations','visibility': [False,True]}          
                           
             except Exception as  e:
                 logger.error(e)
         
         def create_buttons(self,dropdown1,dropdown2):
+            """
+            Creates dictionary for buttons and updates existing dropdowns. No return since everything appended to the threshold class object
+
+            Parameters
+            ----------
+            dropdown1 : dict
+                A dictionary containing a label and visibility of the dropdown
+            dropdown2 : dict
+                A dictionary containing a label and visibility of the dropdown
+            """
             try: 
                 self.button1={'label': 'dates','visibility':[True,False]*len(dropdown1.get('visibility'))}
                 self.button2={'label': 'days','visibility':[False,True]*len(dropdown1.get('visibility'))}
@@ -292,6 +368,19 @@ class plots():
                 logger.error(e)
 
         def get_threshold_dates(self,days):
+            """
+            Creates a date based on an integer
+
+            Parameters
+            ----------
+            days : int
+                Amount of days until a threshold is reached
+
+            Returns
+            -------
+            th_date : string
+                A date in isoformat 
+            """
             try:    
                 th_date=date.today()+timedelta(days)
                 return th_date.isoformat()
@@ -299,6 +388,19 @@ class plots():
                 logger.error(e)
 
         def get_th_date_list(self,th_list):
+            """
+            Creates a list of lists with concrete dates when a threshold is reached
+
+            Parameters
+            ----------
+            th_list : list
+                A list of lists containing the amount of days until a threshold is reached depending on an assumed R-Value
+
+            Returns
+            -------
+            list
+                A list of lists containing a definite day when a threshold is reached depending on an assumed R-Value
+            """
             try:
                 result=[[self.get_threshold_dates(day_int) for day_int in th_list[i]] for i in range(1,len(th_list))]
                 result.insert(0,th_list[0])
@@ -309,6 +411,28 @@ class plots():
 
 
 def add_update_menus(option1_dict,option2_dict,type_input='dropdown',right=True,option3_dict=None):
+    """
+    Creates a list item with a (dropdown or button) menu
+    
+    Parameters
+    ----------
+    option1_dict : dict
+        A dictionary containing the option name and its visibility as a list of booleans (cf. create_dropdowns)
+    option2_dict : dict
+        A dictionary containing the option name and its visibility as a list of booleans (cf. create_dropdowns)
+    type_input : str
+        Optional. Default is 'dropdown'. A String containing the menu-type, can either be 'dropdown' or 'buttons'. 
+    right : bool
+        Optional. Default is True. A boolean indicating if the menu is left or right of the plot
+    option3_dict : dict
+        Optional. Default is None. A dictionary containing the option name and its visibility as a list of booleans (cf. create_dropdowns)
+    
+
+    Returns
+    -------
+    list
+        A list containing a dictionary with a list specification of the buttons and positioning attributes
+    """
     try:
         if right:
             x_input=1
@@ -321,6 +445,7 @@ def add_update_menus(option1_dict,option2_dict,type_input='dropdown',right=True,
             xanchor_input="left"
             y_input=1.07
 
+        # Creating a list with the specification of each dropdown option
         custom_buttons=list([
             dict(
                 label=str(option1_dict['label']),
