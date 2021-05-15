@@ -2,7 +2,10 @@ from loguru import logger
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import time
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
+
+import plotly.graph_objects as go
+
 
 class dictItemsToSelf:
     def __init__(self, dictionary):
@@ -17,6 +20,39 @@ class plots():
         self.color_sizes_dict = country_attributes.color_sizes
         # self.rowEvenColor = self.colors_sizes.rowEvenColor
         # self.rowOddColor = self.colors_sizes.rowOddColor
+
+    def plot_timeline(self,smooth_obj,country,full_html=True):
+        try:
+            self.headers = smooth_obj.headers
+            date_list=[datetime.strptime(x, "%Y-%m-%d").date() for x in smooth_obj.data[0]]
+            fig = make_subplots(rows=2, cols=1,
+                        specs=[[{"type": "scatter"}], [{"type": "table"}]]
+                    )
+
+            for i in range(1,len(smooth_obj.headers)):
+                fig.add_trace(go.Scatter(x=date_list, y=smooth_obj.data[i],
+                                name=smooth_obj.headers[i]),row=1,col=1)
+                # fig.add_trace(go.Scatter(x=date_list, y=smooth_obj.data[i],
+                #                 name=smooth_obj.headers[i]),row=2,col=1)
+
+            fig.update_xaxes(
+                rangeslider_visible=True,
+                rangeselector=dict(
+                    buttons=list([
+                        dict(count=1, label="1m", step="month", stepmode="backward"),
+                        dict(count=6, label="6m", step="month", stepmode="backward"),
+                        dict(count=1, label="YTD", step="year", stepmode="todate"),
+                        dict(count=1, label="1y", step="year", stepmode="backward"),
+                        dict(step="all")
+                    ])
+                )
+            )
+
+            fig.update_layout(yaxis=dict(type='log'))
+            fig.write_html(f'plot_output/smooth_timeline_{country}.html',full_html=full_html)
+
+        except Exception as e:
+            logger.error(str(e))
 
     def add_table(self,header_dict,cells_dict,cell_font_color,header_fill_color,header_font_color,visibility=False,cell_fill_color=None,**kwargs):
         try:
