@@ -40,7 +40,8 @@ class smoothened():
             New_Cases_14_Day_Mean=list(map(lambda x: round(x/14,2) if x is not None else None,New_Cases_14_Day_Sum))
             New_Cases_100K_7_Days=list(map(lambda x: round((x/population)*100000,2) if x is not None else None,New_Cases_7_Day_Sum))
             New_Cases_100K_14_Days=list(map(lambda x: round((x/population)*100000,2) if x is not None else None,New_Cases_14_Day_Sum))
-            Estimated_R0=list(map(lambda x,y: calculateR(x,y),New_Cases_7_Day_Sum,New_Cases_14_Day_Sum))
+            Estimated_delta=list(map(lambda x,y: calculateR(x,y),New_Cases_7_Day_Sum,New_Cases_14_Day_Sum))
+            Estimated_R=[round(x**(4/7),2) for x in Estimated_delta if x is not None]
 
             if daily_dict['Tests'] is not None:                # Since some countries do not publish daily data on tests (looking at you Germany!) I make this calculation optional 
                 # Calculating 7 and 14 day rolling sum for TEST NUMBER
@@ -48,21 +49,22 @@ class smoothened():
                 Tests_14_Day_Sum=list(rolling_sum(daily_dict['Tests'],interval=14))
                 # Calculating smoothened īpatsvars (positive tests)
                 Positive_rate_7_Days=list(map(lambda x,y: calculateTestPositivity(x,y),New_Cases_7_Day_Sum,Tests_7_Day_Sum))
+                Positive_rate_14_Days=list(map(lambda x,y: calculateTestPositivity(x,y),New_Cases_14_Day_Sum,Tests_14_Day_Sum))
                 Positive_rate_daily=list(map(lambda x,y: calculateTestPositivity(x,y),list_of_cases,daily_dict['Tests']))
 
-                self.data=[daily_dict['Date'],list_of_cases,daily_dict['Tests'],Positive_rate_daily,Estimated_R0,Positive_rate_7_Days,            New_Cases_7_Day_Mean,New_Cases_100K_7_Days,New_Cases_7_Day_Sum,Tests_7_Day_Sum,New_Cases_14_Day_Mean,New_Cases_100K_14_Days,New_Cases_14_Day_Sum,Tests_14_Day_Sum]
-                self.headers=['Date','New Cases','Tests administered','Positive Rate','R (estimate)','Positive Rate 7d','7d mean','Cases100k_7days','Cases Sum 7d','Tests Sum 7d','14d mean','Cases100k_14days','Cases Sum 14d','Tests Sum 14d']
+                self.data=[daily_dict['Date'],list_of_cases,daily_dict['Tests'],Positive_rate_daily,Estimated_delta,Estimated_R,Positive_rate_7_Days,Positive_rate_14_Days,New_Cases_7_Day_Mean,New_Cases_100K_7_Days,New_Cases_7_Day_Sum,Tests_7_Day_Sum,New_Cases_14_Day_Mean,New_Cases_100K_14_Days,New_Cases_14_Day_Sum,Tests_14_Day_Sum]
+                self.headers=['Date','New Cases','Tests administered','Positive Rate','growth factor','R (estimate)','Positive Rate 7d','Positive Rate 14d','7d mean','Cases/100k 7d','Cases Sum 7d','Tests Sum 7d','14d mean','Cases 100k 14d','Cases Sum 14d','Tests Sum 14d']
             else:
-                self.data=[daily_dict['Date'],list_of_cases,Estimated_R0,New_Cases_7_Day_Mean,New_Cases_100K_7_Days,New_Cases_7_Day_Sum,New_Cases_14_Day_Mean,New_Cases_100K_14_Days,New_Cases_14_Day_Sum]
-                self.headers=['Date','New Cases','R (estimate)','7d mean','Cases100k_7days','Cases Sum 7d','14d mean','Cases100k_14days','Cases Sum 14d']
+                self.data=[daily_dict['Date'],list_of_cases,Estimated_delta,Estimated_R,New_Cases_7_Day_Mean,New_Cases_100K_7_Days,New_Cases_7_Day_Sum,New_Cases_14_Day_Mean,New_Cases_100K_14_Days,New_Cases_14_Day_Sum]
+                self.headers=['Date','New Cases','Growth factor','R (estimate)','7d mean','Cases/100k 7d','Cases Sum 7d','14d mean','Cases/100k 14d','Cases Sum 14d']
 
             ## Select all 7 day calculations from smoothened_list
             self.headers7=list(filter(lambda x: x.find('14d')<0,self.headers)) # Idea about x.find(): anything not containing the 14d calculations needs to be kept
             self.data7 = [x for x, y in zip(self.data, self.headers) if y.find('14d')<0]
 
             ## Select all 14 day calculations from smoothened_list
-            self.headers14 = list(filter(lambda x: x.find('7d')<0 or x=='Positive Rate 7d', self.headers)) # Idea about x.find(): anything not containing the 7d calculations needs to be kept
-            self.data14 = [x for x, y in zip(self.data, self.headers) if y.find('7d')<0 or y=='Positive Rate 7d' ]
+            self.headers14 = list(filter(lambda x: x.find('7d')<0, self.headers)) # Idea about x.find(): anything not containing the 7d calculations needs to be kept
+            self.data14 = [x for x, y in zip(self.data, self.headers) if y.find('7d')<0]
 
         except Exception as e:
             logger.error(e)
@@ -143,8 +145,9 @@ def rolling_sum(list_of_cases,interval=7,reversed_dates=True):
         A list of rolling sums. Be aware that this list is exactly the `interval` amount shorter than `list_of_cases`
     """
     try:
-        cumulated_sum=np.cumsum(list_of_cases,dtype=int)
-        rolling_sum=list(cumulated_sum[interval:]-cumulated_sum[:-interval])
+        cumulated_sum=[int(x) for x in np.cumsum(list_of_cases,dtype=int)]      # needed for json convertability
+        rolling_sum=[cumulated_sum[i+interval]-cumulated_sum[i] for i in range(0,len(cumulated_sum)-interval)]
+        # rolling_sum=list(cumulated_sum[interval:]-cumulated_sum[:-interval])
         if reversed_dates:
             emptyItems=list(np.repeat(None,interval))
             rolling_sum.extend(emptyItems)
