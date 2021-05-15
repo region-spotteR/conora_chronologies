@@ -10,6 +10,7 @@ class historical_table:
             $headerBackgroundColor: """+ colors_obj.get('colorHeaderBG')+""";
             $headerTextColor: """+ colors_obj.get('colorHeaderFont')+""";
             $rowAltBackgroundColor: """ + colors_obj.get('colorEvenRows')+ """; 
+            $sortArrowActive: """+ colors_obj.get('colorHeaderFont')+""";
             $headerMargin: 8;
             $rowTextColor: rgb(43, 32, 3);
 
