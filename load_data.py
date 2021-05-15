@@ -158,7 +158,7 @@ def data_preparation_de(response_dict,reversed_dates=True):
         day_dict = {}
         for elem in original_list:
             item=elem['properties']
-            current_date=item['Meldedatum'].split(' ')[0].replace('/','-')
+            current_date=item['Meldedatum'].split('T')[0].replace('/','-')
             if current_date not in day_dict:
                 day_dict[current_date]=item['AnzahlFall']
             else:
