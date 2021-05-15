@@ -7,10 +7,7 @@ from datetime import datetime, timedelta
 logger.add(sys.stderr, format="{time} {level} {message}", filter="enrich", level="INFO")
 logger.add(sys.stderr, format="{time} {level} {message}", filter="enrich", level="ERROR")
 
-def hello(name):
-    print('HI THERE ' + name)
-
-class smoothened():
+class history():
     def calculate_values(self,population,daily_dict,reversed_dates=True):
         """
         Calculates smoothened covid case values by applying rolling averages and sums over 7 and 14 days. It also calculates an estimated r0 and new case per 100k for 7 and 14 days.
