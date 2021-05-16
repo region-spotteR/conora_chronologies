@@ -86,8 +86,6 @@ def download_covid_data(country_attributes,country,reversed_dates=True):
             elif country=='fr':
                 cases_dict, tests_dict=data_preparation_fr(result,reversed_dates=reversed_dates)
             elif country=='at':
-                ## lowing the ssl secure level for Austria - #facepalm
-                requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
                 cases_dict=data_preparation_at(result,reversed_dates=reversed_dates)
                 tests_dict=None
             elif country=='be':
@@ -117,12 +115,18 @@ def retrieve_data(country_attributes,url):
     url : str
         A string containing the url. This is used to make the function more generic
 
+
+
     Returns
     -------
     ? : ? 
         A list if a csv is downloaded and a dictionary if a json is downloaded
     """
     try: 
+         ## lowing the ssl secure level for Austria - #facepalm. Austrian server apparently uses SSL security level 1 while others use level 2
+        if country_attributes.country_name=="Austria":       
+            requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
+                
         response = requests.get(url)
         if response.status_code==200:
             if country_attributes.csv:
