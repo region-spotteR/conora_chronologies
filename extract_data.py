@@ -8,6 +8,8 @@ from collections import OrderedDict
 from datetime import datetime, timedelta
 import pathlib
 import pickle
+import urllib3
+
 
 logger.add(sys.stderr, format="{time} {level} {message}", filter="my_module", level="INFO")
 logger.add(sys.stderr, format="{time} {level} {message}", filter="my_module", level="ERROR")
@@ -84,6 +86,8 @@ def download_covid_data(country_attributes,country,reversed_dates=True):
             elif country=='fr':
                 cases_dict, tests_dict=data_preparation_fr(result,reversed_dates=reversed_dates)
             elif country=='at':
+                ## lowing the ssl secure level for Austria - #facepalm
+                requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL:@SECLEVEL=1'
                 cases_dict=data_preparation_at(result,reversed_dates=reversed_dates)
                 tests_dict=None
             elif country=='be':
