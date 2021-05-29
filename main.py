@@ -16,7 +16,7 @@ def main():
 
     # 0.1 Define Country 
     if len(sys.argv)==1:
-        country='fr'    
+        country='de'    
     else: 
         country=sys.argv[1]
         

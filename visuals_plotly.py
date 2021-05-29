@@ -173,13 +173,34 @@ class visuals():
                              ))
             )
             self.fig['layout']['annotations']=tuple(annotations)
+            
+            if attr.table_count<=2:
+                self.update_layout(threshold_dropdowns)
+            else:
+                self.update_layout(threshold_dropdowns,attr.titleText)
 
-
-            self.update_layout(threshold_dropdowns,attr.titleText)
             self.fig.write_html(f"plot_output/thresholds_{country}.html",validate=False,full_html=full_html,include_plotlyjs='cdn')
-        
+
+            if attr.table_count<=2:
+                self.add_title(country)
+
+
         except Exception as e:
             logger.error(e)
+
+    def add_title(self,country):
+        """ Adds the plot title as h1 html title"""
+        try:
+            title_text=f'<h1 style="color:{self.colorTitle}"> <b> {self.country_name}: Dates when the new cases per 100k fall <em> below </em> a threshold </b> </h1> \n'
+            with open(f'plot_output/thresholds_{country}.html','r') as file:
+                div_str = file.read()
+            new_str= title_text+div_str
+            with open(f'plot_output/thresholds_{country}.html','w') as file:
+                file.write(new_str)
+
+        except Exception as e:
+            logger.error(e)
+
 
     def add_threshold_table(self,th_class,cell_list,th_header,below=True,th_dates=False):
         """
