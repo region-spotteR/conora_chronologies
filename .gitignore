@@ -154,6 +154,7 @@ dmypy.json
 .prof
 
 ### vscode ###
+.vscode/
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
@@ -166,5 +167,10 @@ test*.*
 
 # ignore the download cache folder
 download_cache/*
+
+# ignore all plot outputs
+plot_output/history_*.html
+plot_output/thresholds_*.html
+plot_output/old
 
 # End of https://www.toptal.com/developers/gitignore/api/vscode,python,jupyternotebooks
