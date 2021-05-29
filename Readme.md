@@ -12,6 +12,7 @@ You need
 
 - Python>=3.6. I used 3.8
 - [pip](https://pypi.org/project/pip/)
+- The tabulator.scss file from this [repo](https://github.com/olifolkerd/tabulator/tree/master/src/scss). Download it and then move it to `plot_output/static`
 
 ## Installing
 

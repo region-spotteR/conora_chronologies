@@ -16,7 +16,7 @@ def main():
 
     # 0.1 Define Country 
     if len(sys.argv)==1:
-        country='at'    
+        country='fr'    
     else: 
         country=sys.argv[1]
         
@@ -70,7 +70,7 @@ def main():
     # 1.3.2 create threshold and other data
     plots_obj=visuals(attr)
     historical_data.data
-    plots_obj.plot_threshold(simulated,country)
+    plots_obj.plot_threshold(simulated,country,full_html=False)
 
     logger.info("Done writing html-files --- %s seconds ---" % (time.time() - start_time))
 

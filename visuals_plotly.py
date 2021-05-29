@@ -176,7 +176,7 @@ class visuals():
 
 
             self.update_layout(threshold_dropdowns,attr.titleText)
-            self.fig.write_html(f"plot_output/threshold_days_example2_{country}.html",validate=False,full_html=full_html)
+            self.fig.write_html(f"plot_output/thresholds_{country}.html",validate=False,full_html=full_html,include_plotlyjs='cdn')
         
         except Exception as e:
             logger.error(e)

@@ -17,10 +17,10 @@ class historical_table:
             @import "tabulator.scss";
             """
 
-            with open(f'plot_output/{country}_style.scss', 'w') as example_scss:
+            with open(f'plot_output/static/{country}_style.scss', 'w') as example_scss:
                 example_scss.write(scss)
 
-            sass.compile(dirname=('plot_output', 'plot_output'), output_style='compressed')
+            sass.compile(dirname=('plot_output/static', 'plot_output/static'), output_style='compressed')
 
         except Exception as e:
             logger.error(e)
@@ -119,7 +119,7 @@ class historical_table:
             href="https://unpkg.com/tabulator-tables@4.9.3/dist/css/tabulator.min.css"
             rel="stylesheet"
             />
-            <link rel="stylesheet" type="text/css" href="'''+country +'''_style.css" />
+            <link rel="stylesheet" type="text/css" href="static/'''+country +'''_style.css" />
         </head>
         <body>
             <div id="table"></div>
