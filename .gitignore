@@ -162,6 +162,7 @@ dmypy.json
 !.vscode/extensions.json
 *.code-workspace
 
+## project specific stuff
 # ignore all files which start with test
 test*.*
 
@@ -172,5 +173,6 @@ download_cache/*
 plot_output/history_*.html
 plot_output/thresholds_*.html
 plot_output/old
+plot_output/static/*
 
 # End of https://www.toptal.com/developers/gitignore/api/vscode,python,jupyternotebooks
