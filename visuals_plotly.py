@@ -130,7 +130,7 @@ class visuals():
 
 
     
-    def plot_threshold(self,th_obj,country,full_html=True,only_below=True):
+    def plot_threshold(self,th_obj,country,full_html=True,only_below=True,no_buttons=True):
         """
         Creates a set of threshold tables and appends them to a plotly Figure object. Writes the output as a file
 
@@ -144,6 +144,8 @@ class visuals():
             Optional. Defaults to True. This boolean tells plotly if a full hmtl or just a div-object should be returned
         only_below: bool
             Optional. Defaults to true. Only values below the threshold are plotted. Turns of the confusing subplots
+        no_buttons: bool
+            Optional. Defaults to true. Have all controls in the dropdown (strongly recommended!)
         """
         try:
             if only_below:
@@ -161,25 +163,30 @@ class visuals():
             self.add_threshold_table(attr,th_obj.values14_above_th,th_obj.th_above14,below=False)
 
             attr.create_dropdown()
-            attr.create_buttons(attr.dropdown1,attr.dropdown2)
-            threshold_dropdowns = add_update_menus(attr.dropdown1,attr.dropdown2)
-            threshold_dropdowns.append(add_update_menus(attr.button1,attr.button2,type_input='buttons',right=False)[0])
-            annotations=list(self.fig['layout']['annotations'])
-            annotations.append(
-                dict(text="Unit:", showarrow=False,
-                             x=0, y=1.06, yref="paper", align="left",font=dict(
-                                 size=14,
-                                color='black'
-                             ))
-            )
-            self.fig['layout']['annotations']=tuple(annotations)
+            if no_buttons:
+                dropdown_list=attr.update_dropdowns(attr.dropdown1,attr.dropdown2)
+                threshold_dropdowns = add_update_menus(dropdown_list)
+            else:
+                attr.create_buttons(attr.dropdown1,attr.dropdown2)
+                threshold_dropdowns = add_update_menus([attr.dropdown1,attr.dropdown2])
+                threshold_dropdowns.append(add_update_menus([attr.button1,attr.button2],type_input='buttons',right=False)[0])
+
+                annotations=list(self.fig['layout']['annotations'])
+                annotations.append(
+                    dict(text="Unit:", showarrow=False,
+                                x=0, y=1.16, yref="paper", align="left",font=dict(
+                                    size=14,
+                                    color='black'
+                                ))
+                )
+                self.fig['layout']['annotations']=tuple(annotations)
             
             if attr.table_count<=2:
                 self.update_layout(threshold_dropdowns)
             else:
                 self.update_layout(threshold_dropdowns,attr.titleText)
 
-            self.fig.write_html(f"plot_output/thresholds_{country}.html",validate=False,full_html=full_html,include_plotlyjs='cdn')
+            self.fig.write_html(f"plot_output/thresholds_{country}.html",validate=False,full_html=full_html,include_plotlyjs=False)
 
             if attr.table_count<=2:
                 self.add_title(country)
@@ -191,10 +198,14 @@ class visuals():
     def add_title(self,country):
         """ Adds the plot title as h1 html title"""
         try:
+            plotly_js_str= """
+                <script type="text/javascript"> window.PlotlyConfig = { MathJaxConfig: "local" }; </script>
+                <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+            """
             title_text=f'<h1 style="color:{self.colorTitle}"> <b> {self.country_name}: Dates when the new cases per 100k fall <em> below </em> a threshold </b> </h1> \n'
             with open(f'plot_output/thresholds_{country}.html','r') as file:
                 div_str = file.read()
-            new_str= title_text+div_str
+            new_str= title_text+plotly_js_str+div_str
             with open(f'plot_output/thresholds_{country}.html','w') as file:
                 file.write(new_str)
 
@@ -314,7 +325,7 @@ class visuals():
                 A list of header strings for the table
             """
             try:
-                header1=['<b> Assumed R value </b>']
+                header1=['<b>Assumed R value </b>']
                 comp_text= 'New Cases per 100k < ' if below else 'New Cases per 100k > '
                 header2 =  [f"<b>{comp_text}{x}</b>" for x in th_list]
                 return header1+header2
@@ -380,13 +391,39 @@ class visuals():
                 A dictionary containing a label and visibility of the dropdown
             """
             try: 
-                self.button1={'label': 'dates','visibility':[True,False]*len(dropdown1.get('visibility'))}
-                self.button2={'label': 'days','visibility':[False,True]*len(dropdown1.get('visibility'))}
+                self.buttons=[{'label': 'dates','visibility':[True,False]*len(dropdown1.get('visibility'))},
+                              {'label': 'days','visibility':[False,True]*len(dropdown1.get('visibility'))}]
                 self.dropdown1['visibility']=[item for item in dropdown1.get('visibility') for i in range(2)]
                 self.dropdown2['visibility']=[item for item in dropdown2.get('visibility') for i in range(2)]
                 
             except Exception as e:
                 logger.error(e)
+
+        def update_dropdowns(self,dropdown1,dropdown2):
+            """
+            Updates existing dropdowns. No return since everything appended to the threshold class object
+
+            Parameters
+            ----------
+            dropdown1 : dict
+                A dictionary containing a label and visibility of the dropdown
+            dropdown2 : dict
+                A dictionary containing a label and visibility of the dropdown
+            """
+            try: 
+                self.dropdown11={'label':'Days: 7 day Calculations','visibility': update_visibility(dropdown1['visibility'],order=[False,True])}
+                self.dropdown1['label']='Dates: '+ dropdown1['label']
+                self.dropdown1['visibility']=update_visibility(dropdown1['visibility'])
+         
+                self.dropdown22={'label':'Days: 14 day Calculations','visibility': update_visibility(dropdown2['visibility'],order=[False,True])}
+                self.dropdown2['label']='Dates: '+ dropdown2['label']
+                self.dropdown2['visibility']=update_visibility(dropdown2['visibility'])
+
+                return [self.dropdown1,self.dropdown11,self.dropdown2,self.dropdown22]
+
+            except Exception as e:
+                logger.error(e)
+
 
         def get_threshold_dates(self,days):
             """
@@ -430,23 +467,35 @@ class visuals():
                 logger.error(e)
 
 
+def update_visibility(current_visibility,order=[True,False]):
+    """ Updates the dropdown visibility for the plotly plot if another criteria is added"""
+    try:
+        end=[]
+        for i in range(0,len(current_visibility)):
+            if current_visibility[i]:
+                end.append(order[0])
+                end.append(order[1])
+            else:
+                end.append(False)
+                end.append(False)
 
-def add_update_menus(option1_dict,option2_dict,type_input='dropdown',right=True,option3_dict=None):
+        return end
+
+    except Exception as e:
+        logger.error(e)
+    
+def add_update_menus(option_dict_list,type_input='dropdown',right=True):
     """
     Creates a list item with a (dropdown or button) menu
     
     Parameters
     ----------
-    option1_dict : dict
-        A dictionary containing the option name and its visibility as a list of booleans (cf. create_dropdowns)
-    option2_dict : dict
-        A dictionary containing the option name and its visibility as a list of booleans (cf. create_dropdowns)
+    option_dict_list : list
+        A list of dictionaries containing the option name and its visibility as a list of booleans (cf. create_dropdowns)
     type_input : str
         Optional. Default is 'dropdown'. A String containing the menu-type, can either be 'dropdown' or 'buttons'. 
     right : bool
         Optional. Default is True. A boolean indicating if the menu is left or right of the plot
-    option3_dict : dict
-        Optional. Default is None. A dictionary containing the option name and its visibility as a list of booleans (cf. create_dropdowns)
     
 
     Returns
@@ -459,32 +508,28 @@ def add_update_menus(option1_dict,option2_dict,type_input='dropdown',right=True,
             x_input=1
             xanchor_input="right"
             direction_input="down"
-            y_input=1.07
+            y_input=1.17
         else:
             direction_input="left"
-            x_input=0.05
+            x_input=0.08
             xanchor_input="left"
-            y_input=1.07
+            y_input=1.17
 
         # Creating a list with the specification of each dropdown option
         custom_buttons=list([
-            dict(
-                label=str(option1_dict['label']),
-                method='update',
-                args=[{"visible":option1_dict['visibility']}]
-            ),
-            dict(
-                label=str(option2_dict['label']),
-                method='update',
-                args=[{"visible":option2_dict['visibility']}]
-            )
+            # dict(
+            #     label=str(option_dict_list[0]['label']),
+            #     method='update',
+            #     args=[{"visible":option_dict_list[0]['visibility']}]
+            # )
         ])
-        if option3_dict is not None:
+
+        for option_dict in option_dict_list:
             custom_buttons.append(
                 dict(
-                label=str(option3_dict['label']),
+                label=str(option_dict['label']),
                 method='update',
-                args=[{"visible":option3_dict['visibility']}]
+                args=[{"visible":option_dict['visibility']}]
                 )
             )
 

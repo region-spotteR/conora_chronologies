@@ -176,7 +176,8 @@ class simulate():
         """
         self.input_new_cases_avg=new_cases_assumed
         self.input_population=population
-        self.input_range_for_r=sorted(R_range)
+        self.input_r_range=list(sorted(R_range))
+        self.input_delta_range=[R**(7/4) for R in list(sorted(R_range))] # transform R 
         self.input_thresholds=thresholds
         self.input_new_cases_avg14=new_cases_assumed if new_cases_assumed14 is None else new_cases_assumed14
         
@@ -207,22 +208,24 @@ class simulate():
             self.th_below14=sorted(th_list)[:th_above_current100k_14d]
 
             # Step 3: Create two lists one with R values above 1 and another with R values below 1
-            R_range=self.input_range_for_r
-            firstR_over1_i=next((i for i in range(0,len(R_range)) if sorted(R_range)[i]>1),len(R_range))
-            R_below=sorted(R_range)[:firstR_over1_i]        # contains only R values below 1
-            R_above=sorted(R_range)[firstR_over1_i:]        # contains only R values above 1
+            delta_range=self.input_delta_range
+            firstR_over1_i=next((i for i in range(0,len(delta_range)) if sorted(delta_range)[i]>1),len(delta_range))
+            delta_below=sorted(delta_range)[:firstR_over1_i]        # contains only growth rates below 1
+            delta_above=sorted(delta_range)[firstR_over1_i:]        # contains only growth rates above 1
+            r_below=sorted(self.input_r_range)[:firstR_over1_i]
+            r_above=sorted(self.input_r_range)[firstR_over1_i:]
             
             # Step 4: Use Steps 3  and  2 to create value lists for all 4 possible cases
-            self.values7_above_th=self.get_th_list(self.th_above7,R_above,below=False) if len(R_above)>0 and len(self.th_above7)>0 else None
-            self.values14_above_th=self.get_th_list(self.th_above14,R_above,d7=False,below=False) if len(R_above)>0 and len(self.th_above14)>0 else None
-            self.values7_below_th=self.get_th_list(self.th_below7,R_below) if len(R_below)>0 and len( self.th_below7)>0 else None
-            self.values14_below_th=self.get_th_list(self.th_below14,R_below,d7=False)  if len(R_below)>0  and len( self.th_below14)>0 else None
+            self.values7_above_th=self.get_th_list(self.th_above7,delta_above,r_above,below=False) if len(delta_above)>0 and len(self.th_above7)>0 else None
+            self.values14_above_th=self.get_th_list(self.th_above14,delta_above,r_above,d7=False,below=False) if len(delta_above)>0 and len(self.th_above14)>0 else None
+            self.values7_below_th=self.get_th_list(self.th_below7,delta_below,r_below) if len(delta_below)>0 and len( self.th_below7)>0 else None
+            self.values14_below_th=self.get_th_list(self.th_below14,delta_below,r_below,d7=False)  if len(delta_below)>0  and len( self.th_below14)>0 else None
             # in_FC_cases_per100k_7d - dict
 
         except Exception as e:
             logger.error(e)
 
-    def get_th_list(self,th_list,r_list,d7=True,below=True):
+    def get_th_list(self,th_list,growth_list,r_list,d7=True,below=True):
         """
         Calculates after how many days a threshold is reached. Can only be executed after simulate_new_cases
         
@@ -230,8 +233,10 @@ class simulate():
         ----------
         th_list : list
             list of thresholds to verify. This list corresponds to d7 and below input
-        r_list : int
-            list of assumed R values. Either only R values above or below 1; corresponds thus to below
+        r_list : float
+            list of assumed assumed R values. Either only R values above or below 1; corresponds thus to below
+        growth_list : float
+            list of assumed growth rates, gained from the assumed R values in the class method. Either only growth rates above or below 1; corresponds thus to below
         d7 : bool
             Is the  a calculation over 7 or 14 days?
         below : bool
@@ -246,7 +251,7 @@ class simulate():
             FC_dict=self.in_FC_cases_per100k_7d if d7 else self.in_FC_cases_per100k_14d
             res=[r_list]
             for th in th_list:
-                res.append([self.get_th_days(FC_dict[R_s],th,d7,below) for R_s in r_list])
+                res.append([self.get_th_days(FC_dict[delta_s],th,d7,below) for delta_s in growth_list])
             return res
             
         except Exception as e:
@@ -315,29 +320,29 @@ class simulate():
             self.casesPer100k_14d=[date_list]
             self.in_FC_cases_per100k_7d={}
             self.in_FC_cases_per100k_14d={}
-            for R_s in sorted(self.input_range_for_r):
-                step_value=(R_s-1)/7
+            for delta_s in sorted(self.input_delta_range):
+                step_value=(delta_s-1)/7
                 new_cases=np.arange(start=1,stop=1+(step_value*window_length),step=step_value)*self.input_new_cases_avg
                 New_Cases_7_Day_Sum=rolling_sum(new_cases,interval=7,reversed_dates=False)
                 New_Cases_14_Day_Sum=rolling_sum(new_cases,interval=14,reversed_dates=False)
-                self.in_FC_cases_per100k_7d[R_s]=list(map(lambda x: round((x/self.input_population)*100000,2) if x is not None else None,New_Cases_7_Day_Sum))
-                self.in_FC_cases_per100k_14d[R_s]=list(map(lambda x: round((x/self.input_population)*100000,2) if x is not None else None,New_Cases_14_Day_Sum))
+                self.in_FC_cases_per100k_7d[delta_s]=list(map(lambda x: round((x/self.input_population)*100000,2) if x is not None else None,New_Cases_7_Day_Sum))
+                self.in_FC_cases_per100k_14d[delta_s]=list(map(lambda x: round((x/self.input_population)*100000,2) if x is not None else None,New_Cases_14_Day_Sum))
                                         
                 # append cases for simulated
                 self.cases_new.append(list(np.round(new_cases,2)))
-                self.casesPer100k_7d.append(self.in_FC_cases_per100k_7d[R_s])
-                self.casesPer100k_14d.append(self.in_FC_cases_per100k_14d[R_s])
+                self.casesPer100k_7d.append(self.in_FC_cases_per100k_7d[delta_s])
+                self.casesPer100k_14d.append(self.in_FC_cases_per100k_14d[delta_s])
 
 
             # calculates after how many days under an assumed R_0 a threshold is reached.
             if return_threshold_days:
-                self.threshold_days7=[self.input_range_for_r]
-                self.threshold_days14=[self.input_range_for_r]
+                self.threshold_days7=[self.input_r_range]
+                self.threshold_days14=[self.input_r_range]
             
                 for th in self.input_thresholds:                    
-                    threshold_days_list7=[self.verify_threshold(self.in_FC_cases_per100k_7d[R_s],th,interval=7) for R_s in self.input_range_for_r]
+                    threshold_days_list7=[self.verify_threshold(self.in_FC_cases_per100k_7d[delta_s],th,interval=7) for delta_s in self.input_delta_range]
                     self.threshold_days7.append(threshold_days_list7)
-                    threshold_days_list14=[self.verify_threshold(self.in_FC_cases_per100k_14d[R_s],th,interval=14) for R_s in self.input_range_for_r]
+                    threshold_days_list14=[self.verify_threshold(self.in_FC_cases_per100k_14d[delta_s],th,interval=14) for delta_s in self.input_delta_range]
                     self.threshold_days14.append(threshold_days_list14)
 
         except Exception as e:
