@@ -103,6 +103,7 @@ def download_covid_data(country_attributes,country,reversed_dates=True):
 
     except Exception as e:
         logger.error(e)
+        raise
 
 def retrieve_data(country_attributes,url):
     """
@@ -138,6 +139,7 @@ def retrieve_data(country_attributes,url):
 
     except Exception as e:
         logger.error(e)
+        raise
 
     
 
