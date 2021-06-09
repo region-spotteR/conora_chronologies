@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 import pathlib
 import pickle
 import urllib3
+import ijson
+from urllib.request import urlopen 
 
 
 logger.add(sys.stderr, format="{time} {level} {message}", filter="my_module", level="INFO")
@@ -52,7 +54,7 @@ def verify_cache_existence(country):
 
 ## create separate download covid data functions for LV and DE
 
-def download_covid_data(country_attributes,country,reversed_dates=True):
+def download_covid_data(country_attributes,country,reversed_dates=True,use_cache=False):
     """
     Loads covid data from cache if it already exists and otherwise triggers the download and the data cleaning (or standardisation) process
 
@@ -73,31 +75,35 @@ def download_covid_data(country_attributes,country,reversed_dates=True):
     """
 
     try:
-        if verify_cache_existence(country):
+        if use_cache:
+            load_from_cache=verify_cache_existence(country)
+        else:
+            load_from_cache=False
+
+        if load_from_cache:
             cases_dict=load_cached_dict(f'cases_{country}')
             tests_dict=load_cached_dict(f'tests_{country}') if country_attributes.contains_tests else None       
             return cases_dict, tests_dict
         else:
-            result= retrieve_data(country_attributes,country_attributes.url)
-
             if country=='de':
-                cases_dict=data_preparation_de(result,reversed_dates=reversed_dates)
+                cases_dict=data_preparation_de(country_attributes,reversed_dates=reversed_dates)
                 tests_dict=None
             elif country=='fr':
-                cases_dict, tests_dict=data_preparation_fr(result,reversed_dates=reversed_dates)
+                cases_dict, tests_dict=data_preparation_fr(country_attributes,reversed_dates=reversed_dates)
             elif country=='at':
-                cases_dict=data_preparation_at(result,reversed_dates=reversed_dates)
+                cases_dict=data_preparation_at(country_attributes,reversed_dates=reversed_dates)
                 tests_dict=None
             elif country=='be':
-                cases_dict, tests_dict=data_preparation_be(result,reversed_dates=reversed_dates)
+                cases_dict, tests_dict=data_preparation_be(country_attributes,reversed_dates=reversed_dates)
             elif country=='lv':
-                cases_dict, tests_dict=data_preparation_lv(result,reversed_dates=reversed_dates)
+                cases_dict, tests_dict=data_preparation_lv(country_attributes,reversed_dates=reversed_dates)
             else:
                 logger.error(f'No data preparation method for country {country} available')
                 
             # caching the data and then returning it
-            cache_dict(cases_dict,f'cases_{country}')
-            cache_dict(tests_dict,f'tests_{country}') if country_attributes.contains_tests else None
+            if use_cache:
+                cache_dict(cases_dict,f'cases_{country}')
+                cache_dict(tests_dict,f'tests_{country}') if country_attributes.contains_tests else None
             return cases_dict, tests_dict
 
 
@@ -169,14 +175,14 @@ def load_csv(content,sep,encoding):
     except Exception as e:
         logger.error(e)
 
-def data_preparation_de(response_dict,reversed_dates=True):
+def data_preparation_de(country_attributes,reversed_dates=True):
     """
     Creates an sorted dictionary of dates, new cases and tests for the German Covid-19 data
 
     Parameters
     ----------
-    response_dict : dict
-        The raw response from the url as dictionary
+    country_attributes : dict
+        A dictionary containing country attributes
     reversed_dates : bool
         A boolean which is true if the result dictionary should be sorted from most current to oldest date. If False the dictionary is sorted from oldest to most current date.
 
@@ -186,15 +192,18 @@ def data_preparation_de(response_dict,reversed_dates=True):
         A dictionary of lists with the keys Date, `New Cases` and Tests (if there is any test data).
     """
     try:
-        original_list=response_dict['features']
+        f=urlopen(country_attributes.url)
+        covid_observations=ijson.kvitems(f, 'features.item')
+        items = (v for k, v in covid_observations if k == 'properties')
+        #cases = (v for k, v in single_covid_observation if k == 'AnzahlFall')
         day_dict = {}
-        for elem in original_list:
-            item=elem['properties']
+        for item in items:
             current_date=item['Meldedatum'].split('T')[0].replace('/','-')
             if current_date not in day_dict:
                 day_dict[current_date]=item['AnzahlFall']
             else:
-                day_dict[current_date]+=item['AnzahlFall'] # Summing up the data
+                day_dict[current_date]+=item['AnzahlFall']
+
 
         day_dict_sorted=OrderedDict()
         for key in sorted(day_dict.keys(),reverse=reversed_dates):
@@ -205,14 +214,14 @@ def data_preparation_de(response_dict,reversed_dates=True):
     except Exception as e:
         logger.error(e)
 
-def data_preparation_fr(response_list,reversed_dates=True):
+def data_preparation_fr(country_attributes,reversed_dates=True):
     """
     Creates an sorted dictionary of dates, new cases and tests for the French Covid-19 data
 
     Parameters
     ----------
-    response_list : list
-        A list with each item corresponding to a csv row
+    country_attributes : dict
+        A dictionary containing country attributes
     reversed_dates : bool
         A boolean which is true if the result dictionary should be sorted from most current to oldest date. If False the dictionary is sorted from oldest to most current date.
 
@@ -222,6 +231,7 @@ def data_preparation_fr(response_list,reversed_dates=True):
         A dictionary of lists with the keys Date, `New Cases` and Tests (if there is any test data).
     """
     try:
+        response_list= retrieve_data(country_attributes,country_attributes.url)
         column_names=response_list[0]
         date_ix=column_names.index('date')
         cases_ix=column_names.index('pos')
@@ -249,14 +259,14 @@ def data_preparation_fr(response_list,reversed_dates=True):
     except Exception as e:
         logger.error(e)
 
-def data_preparation_at(response_list,reversed_dates=True):
+def data_preparation_at(country_attributes,reversed_dates=True):
     """
     Creates an sorted dictionary of dates, new cases and tests for the Austrian Covid-19 data
 
     Parameters
     ----------
-    response_dict : dict
-        The raw response from the url as dictionary
+    country_attributes : dict
+        A dictionary containing country attributes
     reversed_dates : bool
         A boolean which is true if the result dictionary should be sorted from most current to oldest date. If False the dictionary is sorted from oldest to most current date.
 
@@ -267,6 +277,7 @@ def data_preparation_at(response_list,reversed_dates=True):
     """
     try:       
         # load the second csv 
+        response_list=retrieve_data(country_attributes,country_attributes.url)
         column_names=response_list[0]
         date_ix=0
         cases_ix=column_names.index('AnzahlFaelle')
@@ -290,14 +301,14 @@ def data_preparation_at(response_list,reversed_dates=True):
     except Exception as e:
         logger.error(e)
 
-def data_preparation_be(response_dict,reversed_dates=True):
+def data_preparation_be(country_attributes,reversed_dates=True):
     """
     Creates an sorted dictionary of dates, new cases and tests for the Belgian Covid-19 data
 
     Parameters
     ----------
-    response_dict : dict
-        The raw response from the url as dictionary
+    country_attributes : dict
+        A dictionary containing country attributes
     reversed_dates : bool
         A boolean which is true if the result dictionary should be sorted from most current to oldest date. If False the dictionary is sorted from oldest to most current date.
 
@@ -306,7 +317,8 @@ def data_preparation_be(response_dict,reversed_dates=True):
     dict
         A dictionary of lists with the keys Date, `New Cases` and Tests (if there is any test data).
     """
-    try:       
+    try:
+        response_dict= retrieve_data(country_attributes,country_attributes.url)       
         cases_dict={}
         tests_dict={}
 
@@ -339,14 +351,14 @@ def data_preparation_be(response_dict,reversed_dates=True):
 
 
 
-def data_preparation_lv(response_dict,reversed_dates=True):
+def data_preparation_lv(country_attributes,reversed_dates=True):
     """
     Creates an sorted dictionary of dates, new cases and tests for the Latvian Covid-19 data
 
     Parameters
     ----------
-    response_dict : dict
-        The raw response from the url as dictionary
+    country_attributes : dict
+        A dictionary containing country attributes
     reversed_dates : bool
         A boolean which is true if the result dictionary should be sorted from most current to oldest date. If False the dictionary is sorted from oldest to most current date.
 
@@ -356,6 +368,8 @@ def data_preparation_lv(response_dict,reversed_dates=True):
         A dictionary of lists with the keys Date, `New Cases` and Tests (if there is any test data).
     """
     try:
+        # this works
+        response_dict= retrieve_data(country_attributes,country_attributes.url)
         original_list=response_dict.get('result').get('records')
 
         if reversed_dates:
