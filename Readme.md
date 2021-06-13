@@ -1,6 +1,6 @@
 # Introduction
 
-Usually news-sites stress(ed) _today's_ Covid Statistics. Yet the data gathering process is determined by social behaviour (e.g. not wanting to work on Sundays). Thus the daily data follows a weekly pattern. Consequently we should look at weekly statistics and only use daily statistics as a fall back. A week with e.g. a public holiday can skew statistics dramatically.
+Usually news-sites stress(ed) _today's_ Covid Statistics. Yet the data gathering process is determined by social behaviour (e.g. not wanting to work on Sundays). Thus the daily data follows a weekly pattern. Consequently any daily statistic should be accompanied by some historic statistics over the last 7 (better even 14) days.
 
 Therefore this project tries to look at past developments based on _weekly_ summary statistics. In addition we look into the future by doing some simple calculations.
 
