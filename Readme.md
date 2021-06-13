@@ -36,7 +36,7 @@ From the base directory: `python main.py <country_code>` e.g. `python main.py fr
 
 ## Overview of code execution
 
-1. `country_settings.py`: Retrieve the coountry specific settings
+1. `country_settings.py`: Retrieve the country specific settings
 2. `extract_data` : Download the data and create an ordered data structure
 3. `transform_enrich` : Enrich the data with aggregations and simulations in preparation for plots/tables
 4. `visuals_plotly`: Create tables/plots etc.
